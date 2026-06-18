@@ -1,0 +1,24 @@
+{
+  "mode": "auto",
+  "base_url": "https://api.openai.com/v1",
+  "model": "gpt-4.1-mini",
+  "temperature": 0.7,
+  "max_tokens": 16000,
+  "map_name": "aigen",
+  "origin_tile": [
+    32,
+    32
+  ],
+  "size_adts": [
+    2,
+    2
+  ],
+  "client_version": "3.3.5a",
+  "fallback_theme": "northern pine coast",
+  "write_markdown_brief": true,
+  "generator_defaults": {
+    "mode": "custom",
+    "area_id": 0,
+    "output_dir": "output_loose"
+  }
+}

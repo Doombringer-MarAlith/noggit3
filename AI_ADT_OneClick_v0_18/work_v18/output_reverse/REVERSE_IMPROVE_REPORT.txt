@@ -1,0 +1,5 @@
+AI ADT One-Click v0.17 reverse analysis
+
+Tile 32,32 mode=regenerate h_range=54.889 avg_slope=0.2003 rough=0.02 textures=12 objects=0 m2=0 wmo=0 wet_chunks=0
+
+Mode meanings: preserve=no height edits; polish=conservative smoothing; regenerate=procedural redo blended into edges; M2/WMO are preserved but not edited.

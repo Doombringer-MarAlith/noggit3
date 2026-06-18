@@ -1,0 +1,11 @@
+{
+  "map_name": "x",
+  "tiles_x": [32],
+  "tiles_y": [32],
+  "mode": "custom",
+  "output_dir": "output_smoke",
+  "zone_spec_path": "zone_spec.json",
+  "texture_painting": {"enabled": true, "alpha_sample_step": 64, "layer_choice_stride": 4, "max_layers_per_chunk": 4, "alpha_mode": "raw_4096"},
+  "water": {"enabled": true, "level": 38.0, "liquid_type": 1, "liquid_vertex_format": 0, "river_width": 27.0, "shore_tolerance": 11.0},
+  "wdt": {"mphd_flags": "auto"}
+}

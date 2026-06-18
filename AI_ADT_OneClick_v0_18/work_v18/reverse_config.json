@@ -1,0 +1,32 @@
+{
+  "input_dir": "input_existing",
+  "map_name": "x",
+  "output_dir": "output_reverse",
+  "tiles": "auto",
+  "region_modes": {
+    "32,32": "regenerate",
+    "33,32": "regenerate",
+    "34,32": "regenerate",
+    "35,32": "regenerate",
+    "32,33": "regenerate",
+    "33,33": "regenerate",
+    "34,33": "regenerate",
+    "35,33": "regenerate",
+    "32,34": "polish",
+    "33,34": "polish",
+    "34,34": "polish",
+    "35,34": "regenerate",
+    "32,35": "preserve",
+    "33,35": "preserve",
+    "34,35": "polish",
+    "35,35": "regenerate"
+  },
+  "improvement": {
+    "polish_strength": 0.28,
+    "regenerate_strength": 1.0,
+    "border_blend_adt": 0.1,
+    "preserve_objects": true,
+    "edit_m2_wmo": false
+  },
+  "zone_spec_path": "zone_spec.json"
+}

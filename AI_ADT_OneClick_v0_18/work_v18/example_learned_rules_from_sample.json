@@ -1,0 +1,172 @@
+{
+  "version": "0.5",
+  "source_root": "output_loose/world/maps/aigen",
+  "source_adts": 4,
+  "source_chunks": 1024,
+  "summary": {
+    "avg_layers_per_chunk": 4.0,
+    "layer_count_distribution": {
+      "4": 1024
+    },
+    "top_roles": [
+      [
+        "road",
+        1963
+      ],
+      [
+        "shore",
+        577
+      ],
+      [
+        "rock",
+        549
+      ],
+      [
+        "plague",
+        536
+      ],
+      [
+        "sand",
+        338
+      ],
+      [
+        "snow",
+        133
+      ]
+    ],
+    "top_textures": [
+      [
+        "tileset\\easternplaguelands\\epl_dirt01.blp",
+        1024
+      ],
+      [
+        "tileset\\elwynn\\elwynndirtbase.blp",
+        939
+      ],
+      [
+        "tileset\\easternplaguelands\\epl_mud01.blp",
+        577
+      ],
+      [
+        "tileset\\easternplaguelands\\epl_rock01.blp",
+        549
+      ],
+      [
+        "tileset\\westernplaguelands\\wpl_grass01.blp",
+        536
+      ],
+      [
+        "tileset\\tanaris\\tanaris_sand01.blp",
+        338
+      ],
+      [
+        "tileset\\northrend\\snow\\snow01.blp",
+        133
+      ]
+    ],
+    "warnings": []
+  },
+  "recommended_texture_layers": [
+    {
+      "role": "base",
+      "path": "tileset\\easternplaguelands\\epl_dirt01.blp",
+      "label": "epl_dirt01.blp",
+      "source_count": 1024,
+      "priority": 0.05
+    },
+    {
+      "role": "road",
+      "path": "tileset\\easternplaguelands\\epl_dirt01.blp",
+      "label": "epl_dirt01.blp",
+      "source_count": 1024,
+      "priority": 0.95
+    },
+    {
+      "role": "rock",
+      "path": "tileset\\easternplaguelands\\epl_rock01.blp",
+      "label": "epl_rock01.blp",
+      "source_count": 549,
+      "priority": 0.7
+    },
+    {
+      "role": "shore",
+      "path": "tileset\\easternplaguelands\\epl_mud01.blp",
+      "label": "epl_mud01.blp",
+      "source_count": 577,
+      "priority": 0.55
+    },
+    {
+      "role": "sand",
+      "path": "tileset\\tanaris\\tanaris_sand01.blp",
+      "label": "tanaris_sand01.blp",
+      "source_count": 338,
+      "priority": 0.55
+    },
+    {
+      "role": "snow",
+      "path": "tileset\\northrend\\snow\\snow01.blp",
+      "label": "snow01.blp",
+      "source_count": 133,
+      "priority": 0.5
+    },
+    {
+      "role": "plague",
+      "path": "tileset\\westernplaguelands\\wpl_grass01.blp",
+      "label": "wpl_grass01.blp",
+      "source_count": 536,
+      "priority": 0.52
+    }
+  ],
+  "texture_role_thresholds": {
+    "plague": {
+      "slope_p25": 4.93,
+      "slope_p50": 6.96,
+      "slope_p75": 9.46,
+      "samples": 536
+    },
+    "road": {
+      "slope_p25": 4.59,
+      "slope_p50": 6.36,
+      "slope_p75": 8.58,
+      "samples": 1963
+    },
+    "rock": {
+      "slope_p25": 4.51,
+      "slope_p50": 6.01,
+      "slope_p75": 8.19,
+      "samples": 549
+    },
+    "sand": {
+      "slope_p25": 4.43,
+      "slope_p50": 6.58,
+      "slope_p75": 8.57,
+      "samples": 338
+    },
+    "shore": {
+      "slope_p25": 4.26,
+      "slope_p50": 6.17,
+      "slope_p75": 7.99,
+      "samples": 577
+    },
+    "snow": {
+      "slope_p25": 5.03,
+      "slope_p50": 7.41,
+      "slope_p75": 11.43,
+      "samples": 133
+    }
+  },
+  "generator_hints": {
+    "max_layers_per_chunk": 4,
+    "prefer_chunk_layer_count": 4,
+    "rock_slope_threshold_degrees": 20,
+    "roads_should_be_continuous": true,
+    "avoid_speckled_alphamaps": true,
+    "prefer_large_connected_texture_masks": true,
+    "use_only_learned_texture_paths_when_possible": true
+  },
+  "notes": [
+    "This is a local statistical rule distillation, not redistributed Blizzard data.",
+    "The generator consumes recommended_texture_layers directly if this file is present.",
+    "Object placement is intentionally not learned here; M2/WMO trust filtering should be separate."
+  ]
+}

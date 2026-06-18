@@ -1,0 +1,758 @@
+{
+  "version": "0.4",
+  "map_name": "x",
+  "zone_name": "Greenreed Valley",
+  "client_version": "3.3.5a",
+  "origin_tile": [
+    32,
+    32
+  ],
+  "size_adts": [
+    4,
+    4
+  ],
+  "tiles_x": [
+    32,
+    33,
+    34,
+    35
+  ],
+  "tiles_y": [
+    32,
+    33,
+    34,
+    35
+  ],
+  "source_prompt": "Please do a 4x4 ADT block that would portray a cozy jungle valley with rivers and rocky terrain, all while having a traversible path in the middle. For map X.",
+  "creative_intent": {
+    "one_sentence": "A cozy jungle valley zone with readable roads, strong landmarks, and restrained WotLK-era composition.",
+    "primary_biome": "cozy jungle valley",
+    "mood_words": [
+      "warm green",
+      "deep shadow",
+      "wet brown",
+      "mossy gray",
+      "frontier",
+      "windy",
+      "remote"
+    ],
+    "blizzlike_rules": [
+      "strong macro silhouette before small details",
+      "limited terrain texture vocabulary per subzone",
+      "roads must clearly connect every major gameplay pocket",
+      "empty travel space is allowed; random clutter is not",
+      "landmarks should be visible before the player reaches them"
+    ],
+    "scale_guidance": "Third-person readable: wide roads, chunky silhouettes, large negative space between quest pockets."
+  },
+  "terrain": {
+    "base_elevation": 42.0,
+    "global_noise": {
+      "large_wave_height": 24,
+      "medium_noise_height": 7,
+      "micro_noise_height": 1.8,
+      "micro_noise_allowed": false
+    },
+    "features": [
+      {
+        "id": "north_macro_ridge",
+        "type": "ridge",
+        "path": [
+          [
+            0.0,
+            0.65
+          ],
+          [
+            1.2,
+            0.35
+          ],
+          [
+            2.8,
+            0.55
+          ],
+          [
+            4,
+            0.25
+          ]
+        ],
+        "height": 75,
+        "width": 0.75,
+        "purpose": "northern zone wall and distant silhouette"
+      },
+      {
+        "id": "eastern_boundary_ridge",
+        "type": "ridge",
+        "path": [
+          [
+            3.65,
+            0.5
+          ],
+          [
+            3.45,
+            1.8
+          ],
+          [
+            3.75,
+            3.8
+          ]
+        ],
+        "height": 65,
+        "width": 0.62,
+        "purpose": "contain the play space without invisible walls"
+      },
+      {
+        "id": "central_river_valley",
+        "type": "valley",
+        "path": [
+          [
+            0.72,
+            0.15
+          ],
+          [
+            1.12,
+            1.0
+          ],
+          [
+            1.8,
+            1.92
+          ],
+          [
+            2.6,
+            2.88
+          ],
+          [
+            3.28,
+            3.85
+          ]
+        ],
+        "depth": 25,
+        "width": 0.48,
+        "purpose": "natural travel guide and water basin"
+      },
+      {
+        "id": "entry_plateau",
+        "type": "plateau",
+        "center": [
+          1.0,
+          3.12
+        ],
+        "height": 8,
+        "radius": 0.42,
+        "purpose": "flat safe start hub"
+      },
+      {
+        "id": "mid_crossing_flat",
+        "type": "plateau",
+        "center": [
+          2.16,
+          2.2
+        ],
+        "height": 6,
+        "radius": 0.5,
+        "purpose": "flat crossing village and bridge approach"
+      },
+      {
+        "id": "wilds_basin",
+        "type": "basin",
+        "center": [
+          3.28,
+          2.96
+        ],
+        "depth": 18,
+        "radius": 0.72,
+        "purpose": "redo target with more interesting lowland loop"
+      }
+    ],
+    "settlement_flattening": [
+      {
+        "settlement_id": "entry_hamlet",
+        "center": [
+          1.0,
+          3.12
+        ],
+        "radius": 0.28,
+        "max_slope_degrees": 4
+      },
+      {
+        "settlement_id": "mid_village",
+        "center": [
+          2.16,
+          2.2
+        ],
+        "radius": 0.34,
+        "max_slope_degrees": 5
+      }
+    ]
+  },
+  "water": {
+    "enabled": true,
+    "level": 38.0,
+    "liquid_type": 1,
+    "features": [
+      {
+        "id": "main_river",
+        "type": "river",
+        "path": [
+          [
+            0.72,
+            0.15
+          ],
+          [
+            1.12,
+            1.0
+          ],
+          [
+            1.8,
+            1.92
+          ],
+          [
+            2.6,
+            2.88
+          ],
+          [
+            3.28,
+            3.85
+          ]
+        ],
+        "width": 0.15,
+        "level": 38.0,
+        "purpose": "zone-spanning visual guide"
+      },
+      {
+        "id": "crossing_lake",
+        "type": "lake",
+        "center": [
+          2.16,
+          2.28
+        ],
+        "radius": 0.23,
+        "level": 38.0,
+        "purpose": "landmark at central village"
+      }
+    ],
+    "shore_rules": [
+      "mud/sand mask 0.05-0.12 ADT from liquid",
+      "rocky banks where slope exceeds 20 degrees",
+      "roads require bridge/ford markers where crossing river"
+    ]
+  },
+  "roads": [
+    {
+      "id": "main_story_road",
+      "path": [
+        [
+          0.25,
+          3.45
+        ],
+        [
+          1.2,
+          2.85
+        ],
+        [
+          1.68,
+          2.32
+        ],
+        [
+          2.52,
+          1.68
+        ],
+        [
+          3.55,
+          0.75
+        ]
+      ],
+      "width": 0.065,
+      "target_slope_max": 11,
+      "surface": "dirt road",
+      "purpose": "connect entry hub, crossing, northern landmark"
+    },
+    {
+      "id": "ruin_spur",
+      "path": [
+        [
+          2.2,
+          2.16
+        ],
+        [
+          2.64,
+          1.68
+        ],
+        [
+          2.96,
+          0.96
+        ]
+      ],
+      "width": 0.045,
+      "target_slope_max": 14,
+      "surface": "dark dirt / broken stone",
+      "purpose": "optional hostile branch"
+    },
+    {
+      "id": "wilds_loop",
+      "path": [
+        [
+          2.24,
+          2.32
+        ],
+        [
+          3.04,
+          2.8
+        ],
+        [
+          3.44,
+          3.32
+        ],
+        [
+          2.72,
+          3.6
+        ],
+        [
+          1.96,
+          2.88
+        ]
+      ],
+      "width": 0.045,
+      "target_slope_max": 13,
+      "surface": "trampled earth",
+      "purpose": "make regenerated empty area playable"
+    }
+  ],
+  "textures": {
+    "base_texture": "tileset\\stranglethorn\\stranglethorngrassbase.blp",
+    "palette": [
+      "lush jungle grass",
+      "muddy footpath",
+      "wet gray rock",
+      "dark jungle floor",
+      "riverbank mud"
+    ],
+    "texture_layers": [
+      {
+        "role": "base",
+        "label": "primary ground",
+        "path": "tileset\\stranglethorn\\stranglethorngrassbase.blp",
+        "priority": 0.05
+      },
+      {
+        "role": "forest",
+        "label": "forest floor / darker grass",
+        "path": "tileset\\stranglethorn\\stranglethorngrassdark.blp",
+        "priority": 0.35
+      },
+      {
+        "role": "shore",
+        "label": "mud or shore transition",
+        "path": "tileset\\stranglethorn\\stranglethornmud.blp",
+        "priority": 0.55
+      },
+      {
+        "role": "rock",
+        "label": "slope rock",
+        "path": "tileset\\stranglethorn\\stranglethornrock.blp",
+        "priority": 0.7
+      },
+      {
+        "role": "road",
+        "label": "road dirt",
+        "path": "tileset\\stranglethorn\\stranglethorndirtbase.blp",
+        "priority": 0.95
+      },
+      {
+        "role": "snow",
+        "label": "optional high elevation snow",
+        "path": "tileset\\northrend\\snow\\snow01.blp",
+        "priority": 0.45
+      },
+      {
+        "role": "sand",
+        "label": "optional beach sand",
+        "path": "tileset\\tanaris\\tanaris_sand01.blp",
+        "priority": 0.5
+      },
+      {
+        "role": "plague",
+        "label": "optional haunted/plague accent",
+        "path": "tileset\\easternplaguelands\\epl_dirt01.blp",
+        "priority": 0.52
+      }
+    ],
+    "layer_budget_per_chunk": 4,
+    "alpha_painting": {
+      "enabled": true,
+      "max_layers_per_chunk": 4,
+      "roles": [
+        "base",
+        "forest",
+        "shore",
+        "rock",
+        "road",
+        "snow",
+        "sand",
+        "plague"
+      ],
+      "style": "large connected masks, road continuity, slope rock, shoreline mud, no speckle"
+    },
+    "mask_rules": [
+      {
+        "texture": "lush jungle grass",
+        "where": "default low/medium slope ground"
+      },
+      {
+        "texture": "muddy footpath",
+        "where": "distance_to_road < road_width"
+      },
+      {
+        "texture": "wet gray rock",
+        "where": "slope > 28 degrees or ridge/cliff feature"
+      },
+      {
+        "texture": "dark jungle floor",
+        "where": "forest or sheltered inland pockets"
+      },
+      {
+        "texture": "riverbank mud",
+        "where": "within shoreline band or wet basin"
+      }
+    ],
+    "anti_private_server_smell": [
+      "no speckled alphamaps",
+      "no more than one accent texture per chunk",
+      "road texture must be continuous",
+      "slope rock should form connected shapes"
+    ]
+  },
+  "subzones": [
+    {
+      "id": "southern_entry",
+      "name": "Southern Approach",
+      "bounds": [
+        [
+          0,
+          2.48
+        ],
+        [
+          1.92,
+          4
+        ]
+      ],
+      "role": "safe introduction and first vista",
+      "density": "low",
+      "palette_bias": [
+        "lush jungle grass",
+        "muddy footpath"
+      ]
+    },
+    {
+      "id": "central_crossing",
+      "name": "The Crossing",
+      "bounds": [
+        [
+          1.28,
+          1.52
+        ],
+        [
+          2.8,
+          2.88
+        ]
+      ],
+      "role": "main navigation knot",
+      "density": "medium",
+      "palette_bias": [
+        "muddy footpath",
+        "riverbank mud"
+      ]
+    },
+    {
+      "id": "northern_highlands",
+      "name": "Northern Highridge",
+      "bounds": [
+        [
+          0,
+          0
+        ],
+        [
+          4,
+          1.28
+        ]
+      ],
+      "role": "ridge, cliffs, hostile reveal",
+      "density": "medium-high",
+      "palette_bias": [
+        "wet gray rock",
+        "dark jungle floor"
+      ]
+    },
+    {
+      "id": "eastern_wilds",
+      "name": "Eastern Wilds",
+      "bounds": [
+        [
+          2.48,
+          1.0
+        ],
+        [
+          4,
+          4
+        ]
+      ],
+      "role": "wilderness loop and optional objectives",
+      "density": "medium",
+      "palette_bias": [
+        "lush jungle grass",
+        "dark jungle floor"
+      ]
+    }
+  ],
+  "landmarks": [
+    {
+      "id": "entry_vista",
+      "name": "First Ridge View",
+      "position": [
+        0.88,
+        2.88
+      ],
+      "type": "vista",
+      "visibility_goal": "player sees central crossing and northern ridge within 20 seconds"
+    },
+    {
+      "id": "crossing_bridge",
+      "name": "The Old Bridge",
+      "position": [
+        2.16,
+        2.2
+      ],
+      "type": "bridge/dock landmark",
+      "visibility_goal": "readable from both road approaches"
+    },
+    {
+      "id": "northern_silhouette",
+      "name": "Highridge Ruins",
+      "position": [
+        2.96,
+        0.96
+      ],
+      "type": "distant hostile landmark",
+      "visibility_goal": "visible above treeline from central road"
+    }
+  ],
+  "settlements": [
+    {
+      "id": "entry_hamlet",
+      "name": "Wayfarer's Camp",
+      "type": "small safe hub",
+      "center": [
+        1.0,
+        3.12
+      ],
+      "radius": 0.34,
+      "faction": "neutral frontier",
+      "terrain_requirements": {
+        "flatten_radius": 0.28,
+        "max_slope_degrees": 4
+      },
+      "visual_grammar": [
+        "central campfire",
+        "2-4 tents or houses",
+        "crates near road",
+        "lamps at entrance",
+        "partial fence facing wilderness"
+      ]
+    },
+    {
+      "id": "mid_village",
+      "name": "Bridgefield",
+      "type": "quest village / crossing hub",
+      "center": [
+        2.16,
+        2.2
+      ],
+      "radius": 0.42,
+      "faction": "contested",
+      "terrain_requirements": {
+        "flatten_radius": 0.34,
+        "max_slope_degrees": 5
+      },
+      "visual_grammar": [
+        "main road bends around hub",
+        "bridge or dock focus",
+        "market clutter",
+        "visible inn/tower silhouette"
+      ]
+    }
+  ],
+  "encounter_spaces": [
+    {
+      "id": "entry_wolves",
+      "center": [
+        1.44,
+        2.96
+      ],
+      "radius": 0.28,
+      "density": "low",
+      "terrain_need": "gentle slopes and sparse trees"
+    },
+    {
+      "id": "river_murlocs_or_bandits",
+      "center": [
+        2.4,
+        2.52
+      ],
+      "radius": 0.35,
+      "density": "medium",
+      "terrain_need": "shoreline and clear pull pockets"
+    },
+    {
+      "id": "wilds_hostile_loop",
+      "center": [
+        3.28,
+        3.12
+      ],
+      "radius": 0.5,
+      "density": "medium-high",
+      "terrain_need": "regenerated empty ADTs should receive terrain shape and road loop"
+    }
+  ],
+  "object_intent": {
+    "status": "intent_only_not_applied_by_v0_5",
+    "safe_strategy": [
+      "reuse existing assets when reverse-improving",
+      "use whitelisted biome sets only",
+      "never choose from all M2/WMO paths blindly",
+      "quarantine crashy assets"
+    ],
+    "desired_asset_families": [
+      "jungle trees",
+      "vines",
+      "wet rocks",
+      "small huts",
+      "ruined troll stones"
+    ],
+    "placement_grammars": {
+      "safe_hub": [
+        "flat pad",
+        "central fire/well",
+        "2-5 structures",
+        "crate clusters",
+        "road lamps",
+        "partial fence"
+      ],
+      "hostile_ruin": [
+        "broken walls",
+        "dead trees",
+        "grave rows",
+        "debris radius",
+        "clear entrance silhouette"
+      ],
+      "wilderness": [
+        "tree clusters not uniform",
+        "rock clusters on slope changes",
+        "clear roads",
+        "empty quiet spaces"
+      ]
+    }
+  },
+  "minimap": {
+    "enabled": true,
+    "style": "height/water derived preview",
+    "labels_to_add_later": [
+      "Wayfarer's Camp",
+      "Bridgefield"
+    ]
+  },
+  "wdl": {
+    "enabled": true,
+    "custom_only": true,
+    "purpose": "low-resolution distant terrain from generated height field"
+  },
+  "reverse_region_modes": {
+    "32,32": "regenerate",
+    "33,32": "regenerate",
+    "34,32": "regenerate",
+    "35,32": "regenerate",
+    "32,33": "regenerate",
+    "33,33": "regenerate",
+    "34,33": "regenerate",
+    "35,33": "regenerate",
+    "32,34": "polish",
+    "33,34": "polish",
+    "34,34": "polish",
+    "35,34": "regenerate",
+    "32,35": "preserve",
+    "33,35": "preserve",
+    "34,35": "polish",
+    "35,35": "regenerate"
+  },
+  "polish_rules": {
+    "preserve": [
+      "do not alter terrain except optional seam touch in future",
+      "do not remove objects",
+      "regenerate WDL/minimap only"
+    ],
+    "polish": [
+      "smooth high-frequency brush noise",
+      "preserve macro shape",
+      "fix seams",
+      "repaint roads/shorelines in future texture pass"
+    ],
+    "regenerate": [
+      "replace empty terrain with planned macro forms",
+      "blend border 0.10 ADT against neighbors",
+      "ensure road/water continuity"
+    ]
+  },
+  "generator_config": {
+    "mode": "custom",
+    "area_id": 0,
+    "output_dir": "output_loose",
+    "base_texture": "tileset\\stranglethorn\\stranglethorngrassbase.blp",
+    "height_scale": 18.0,
+    "hill_height": 35.0,
+    "valley_depth": 20.0,
+    "water": {
+      "enabled": true,
+      "level": 38.0,
+      "liquid_type": 1,
+      "liquid_vertex_format": 0,
+      "river_width": 27.0,
+      "shore_tolerance": 11.0
+    },
+    "wdl": {
+      "enabled": true,
+      "custom_only": true
+    },
+    "minimap": {
+      "enabled": true,
+      "tile_size": 256,
+      "write_tga_previews": true,
+      "write_world_minimaps_copy": true,
+      "write_md5translate": true,
+      "sample_step": 32
+    },
+    "texture_painting": {
+      "enabled": true,
+      "learned_rules_path": "learned_blizzlike_rules.json",
+      "max_layers_per_chunk": 4,
+      "alpha_mode": "raw_4096",
+      "alpha_sample_step": 32,
+      "write_texture_debug": true,
+      "layer_choice_stride": 4
+    }
+  },
+  "validation_targets": {
+    "road_slope_max_degrees": 14,
+    "settlement_slope_max_degrees": 5,
+    "texture_layers_per_chunk_max": 4,
+    "adt_seam_delta_max": 0.25,
+    "water_should_not_flood_non_basin_land": true,
+    "minimap_tiles_expected": 16,
+    "mcnk_per_adt_expected": 256
+  },
+  "production_notes": [
+    "v0.11 consumes terrain/water/road/texture spec and paints real MCLY/MCAL alphamaps automatically.",
+    "M2/WMO placement is intentionally intent-only until an asset trust database exists.",
+    "For half-complete handmade maps, feed 3x3 or 4x4 ADT groups and mark center empty tiles regenerate while finished border tiles preserve/polish.",
+    "Server-side DBC/SQL remains outside this package by design."
+  ],
+  "planner_used": "offline",
+  "generated_at_unix": 1781697439
+}
