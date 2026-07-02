@@ -1,5 +1,44 @@
 # AI ADT OneClick v0.18
 
+## v0.19 external audit fixes (Noggit-source cross-review)
+
+This pass audited every writer against the actual Noggit 3.3.5a load/save code
+(`MapTile.cpp`, `MapChunk.cpp`, `MapHeaders.h`, `liquid_*.cpp`, `alphamap.cpp`,
+`texture_set.cpp`, `map_index.cpp`, `map_horizon.cpp`) plus TrinityCore's 3.3.5
+extractor structs, and validated outputs with an independent Noggit-load
+emulator. Fixes:
+
+- MH2O: instance heights and min/max now use the same per-feature water level
+  chain as the wetness test (feature.level -> spec water.level -> config), so
+  lakes with their own level no longer render at the global level. Instances
+  are shrunk to the wet bounding rectangle with a rect-relative exists bitmap
+  and `(w+1)*(h+1)` vertices, matching Noggit's `liquid_layer::save` exactly.
+- WDT: terrain-only WDTs now carry the Blizzard-style empty `MWMO` after `MAIN`.
+- WDL: now written as `MVER` + empty `MWMO`/`MWID`/`MODF` + `MAOF` + `MARE`,
+  the Blizzard 3.3.5a layout.
+- md5translate: entry lines no longer end with a stray tab, and by default only
+  `md5translate_*_FRAGMENT.trs` is written. The global `md5translate.trs` is a
+  whole-file override in the client, so shipping a fragment under that name
+  used to wipe every stock map's minimap; opt in via
+  `minimap.write_full_md5translate` / `outputs.write_full_md5translate`.
+- MTEX: non-ASCII texture paths are rejected with a warning instead of being
+  silently mangled to `?`. Duplicate paths shared by two roles (default road +
+  shore) keep both roles paintable through one MTEX entry instead of dropping
+  one; a chunk never lists the same texture in two MCLY layers.
+- MCAL RLE: the compressor restarts runs at every 64-byte row like Noggit's.
+- Reverse mode: `preserve` tiles are now byte-identical (no MCVT/ypos/MCNR
+  rewrite, and seam fixing snaps neighbours onto preserved edges instead of
+  averaging them); polish/regenerate keep the original 8x8 inner MCVT detail
+  and shift it by the outer-grid delta instead of flattening it with bilinear
+  resampling. The WDT normalizer no longer clears an existing big-alpha flag
+  from subset inference, the fallback WDT marks every ADT in the input folder
+  (not just the processed subset), and the WDL is spliced into the source WDL
+  so unprocessed tiles keep their horizon data. Auto mode can now answer
+  `preserve` for object-rich tiles and warns when regenerated tiles carry MH2O.
+- Validator: now also checks MHDR offsets against real chunk positions, MVER
+  versions and fixed MPHD/MAIN/MAOF sizes, MCLY textureID bounds and layer-0
+  flags, per-map MCAL sizes against the WDT big-alpha flag, MH2O rect bounds,
+  and intra-tile chunk seams; its RLE decoder matches Noggit's lenient reader.
 
 ## v0.18 core audit notes
 

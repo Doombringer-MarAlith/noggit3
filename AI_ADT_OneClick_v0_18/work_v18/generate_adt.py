@@ -453,17 +453,32 @@ def texture_catalog(cfg: dict) -> List[Dict[str, Any]]:
     """Return ordered global MTEX texture entries with role metadata."""
     if '_texture_catalog_cached' in cfg:
         return cfg['_texture_catalog_cached']
-    seen = set()
+    seen: Dict[str, int] = {}
     out: List[Dict[str, Any]] = []
+    role_alias: Dict[str, int] = {}
 
     def add(role: str, path: str, label: Optional[str] = None, priority: float = 0.0):
         if not path:
             return
         norm = path.replace('/', '\\')
+        try:
+            norm.encode('ascii')
+        except UnicodeEncodeError:
+            # MTEX paths are raw MPQ lookup keys; a '?'-mangled path can never
+            # resolve in the client, so skip it loudly instead of corrupting MTEX.
+            print(f'Warning: skipping non-ASCII texture path {norm!r} for role {role}')
+            return
         key = norm.lower()
         if key in seen:
+            # Same texture used by several roles (default road and shore both
+            # use elwynndirtbase). Keep the role reachable by aliasing it to
+            # the existing MTEX entry instead of silently dropping the role.
+            if role not in role_alias:
+                role_alias[role] = seen[key]
             return
-        seen.add(key)
+        seen[key] = len(out)
+        if role not in role_alias:
+            role_alias[role] = len(out)
         out.append({"role": role, "path": norm, "label": label or role, "priority": float(priority)})
 
     # learned rules win: they are taken from the user's local ADTs, so those paths should exist.
@@ -498,6 +513,7 @@ def texture_catalog(cfg: dict) -> List[Dict[str, Any]]:
 
     # WoW terrain chunks can only use a few layers at a time, but MTEX may list more.
     cfg['_texture_catalog_cached'] = out[:32]
+    cfg['_texture_role_alias'] = {r: i for r, i in role_alias.items() if i < len(cfg['_texture_catalog_cached'])}
     return cfg['_texture_catalog_cached']
 
 
@@ -594,6 +610,11 @@ def choose_chunk_layers(tile_x: int, tile_y: int, chunk_x: int, chunk_y: int, cf
     role_to_item: Dict[str, Dict[str, Any]] = {}
     for i, item in enumerate(catalog):
         role_to_item.setdefault(item['role'], dict(item, id=i))
+    # Roles whose texture path was deduplicated into another entry still paint
+    # through the shared MTEX id (e.g. shore aliased onto the road dirt texture).
+    for role, idx in (cfg.get('_texture_role_alias') or {}).items():
+        if role not in role_to_item and 0 <= idx < len(catalog):
+            role_to_item[role] = dict(catalog[idx], role=role, id=idx)
     base_item = role_to_item.get('base') or dict(catalog[0], id=0)
     scores = {r: 0.0 for r in role_to_item.keys()}
     samples = 0
@@ -627,16 +648,38 @@ def choose_chunk_layers(tile_x: int, tile_y: int, chunk_x: int, chunk_y: int, cf
     extras.sort(reverse=True, key=lambda x: x[0])
     max_layers = int(cfg.get('texture_painting', {}).get('max_layers_per_chunk', 4))
     max_layers = max(1, min(4, max_layers))
-    chosen_items = [base_item] + [it for _, _, it in extras[:max_layers-1]]
+    chosen_items = [base_item]
+    used_ids = {int(base_item.get('id', 0))}
+    for _, _, it in extras:
+        if len(chosen_items) >= max_layers:
+            break
+        # Aliased roles can share one MTEX id; a chunk must not list the same
+        # texture in two MCLY layers.
+        if int(it.get('id', 0)) in used_ids:
+            continue
+        used_ids.add(int(it.get('id', 0)))
+        chosen_items.append(it)
     order = {'base': 0, 'forest': 1, 'sand': 1, 'shore': 2, 'plague': 2, 'snow': 2, 'rock': 3, 'road': 4}
     chosen_items[1:] = sorted(chosen_items[1:], key=lambda it: order.get(it['role'], 2))
     return chosen_items
 
 
 def alpha_rle(data: bytes) -> bytes:
-    """Compress one 64x64 8-bit MCAL alpha map using WotLK RLE control bytes."""
+    """Compress one 64x64 8-bit MCAL alpha map using WotLK RLE control bytes.
+
+    Runs are restarted at every 64-byte row boundary, matching Noggit's own
+    compressor; the decompressor tolerates crossing runs, but Blizzard-style
+    files keep rows independent.
+    """
     if len(data) != 4096:
         raise ValueError('alpha_rle expects 4096 bytes')
+    out = bytearray()
+    for row in range(64):
+        out.extend(_alpha_rle_row(data[row * 64:(row + 1) * 64]))
+    return bytes(out)
+
+
+def _alpha_rle_row(data: bytes) -> bytes:
     out = bytearray(); i = 0; n = len(data)
     while i < n:
         b = data[i]
@@ -1016,14 +1059,36 @@ def pack_bitmap_u64(bits: int) -> bytes:
     return bytes((bits >> (8 * i)) & 0xFF for i in range(8))
 
 
-def build_mh2o(tile_x: int, tile_y: int, cfg: dict) -> bytes:
-    """Build a WotLK MH2O chunk in the same broad layout Noggit saves.
+def chunk_water_level(tile_x: int, tile_y: int, chunk_x: int, chunk_y: int, cfg: dict) -> float:
+    """Resolve the water surface height for one MCNK the same way is_water_at does.
 
-    v0.10 wrote a very sparse MH2O: per wet MCNK it had an info mask but no
-    render attributes and no height/depth payload. Noggit's liquid_tile/liquid
-    save path writes a 256-entry MH2O header table, optional render attributes,
-    MH2O_Information, then per-layer height/depth payloads. v0.11 follows that
-    simpler Noggit-compatible form for one flat river/ocean layer per wet MCNK.
+    is_water_at decides wetness against the *feature* level (feature.level ->
+    spec water.level -> config water.level) in zone-spec mode, so the written
+    MH2O heights must use the same chain or the rendered surface sits at the
+    wrong height (e.g. a mountain lake floating above or sunk below its shore).
+    """
+    water = cfg.get('water', {})
+    default = float(water.get('level', 38.0))
+    spec = cfg.get('_zone_spec')
+    if not spec:
+        return default
+    base_x, base_y = chunk_base_world(tile_x, tile_y, chunk_x, chunk_y)
+    _d, feature = spec_water_distance(base_x - 4.0 * UNIT, base_y - 4.0 * UNIT, cfg)
+    spec_level = spec.get('water', {}).get('level', default)
+    if feature is None:
+        return float(spec_level)
+    return float(feature.get('level', spec_level))
+
+
+def build_mh2o(tile_x: int, tile_y: int, cfg: dict) -> bytes:
+    """Build a WotLK MH2O chunk in the same layout Noggit saves.
+
+    Noggit's liquid_tile/liquid_chunk/liquid_layer save path writes a 256-entry
+    MH2O header table, then per wet chunk: MH2O_Attributes, MH2O_Information,
+    the exists-bitmap (only when the bounding rect is not fully wet), and the
+    vertex payload. Like Noggit, instances are shrunk to the bounding rectangle
+    of wet 8x8 subchunks (xOffset/yOffset/width/height) with (w+1)*(h+1)
+    vertices, and the exists-bitmap bits are rect-relative, LSB first.
     Empty tiles return b'' so MHDR.mh2o can be zero instead of pointing at an
     empty 8-byte MH2O chunk that loaders may try to parse as 256 headers.
     """
@@ -1031,7 +1096,6 @@ def build_mh2o(tile_x: int, tile_y: int, cfg: dict) -> bytes:
     if not water.get('enabled', True):
         return b''
 
-    water_level = float(water.get('level', 38.0))
     liquid_type = int(water.get('liquid_type', 1))
     lvf = int(water.get('liquid_vertex_format', 0))
 
@@ -1047,6 +1111,15 @@ def build_mh2o(tile_x: int, tile_y: int, cfg: dict) -> bytes:
                 header_entries.append((0, 0, 0))
                 continue
             wet_any = True
+            level = chunk_water_level(tile_x, tile_y, cx, cy, cfg)
+
+            # Bounding rectangle of wet subchunks, exactly like Noggit's
+            # liquid_layer::save (xOffset=min_x, yOffset=min_z, exclusive max).
+            wet_cells = [(qx, qy) for qy in range(8) for qx in range(8) if bits & (1 << (qy * 8 + qx))]
+            min_x = min(q[0] for q in wet_cells); max_x = max(q[0] for q in wet_cells)
+            min_y = min(q[1] for q in wet_cells); max_y = max(q[1] for q in wet_cells)
+            x_off, y_off = min_x, min_y
+            width, height = max_x - min_x + 1, max_y - min_y + 1
 
             # Header ofsRenderMask: Noggit writes MH2O_Attributes for normal
             # non-fatigue water. Use the visible bits as fishable and no fatigue.
@@ -1057,12 +1130,23 @@ def build_mh2o(tile_x: int, tile_y: int, cfg: dict) -> bytes:
             info_pos_in_tail = len(tail)
             tail.extend(b'\0' * 24)  # MH2O_Information, patched below
 
-            # For a fully filled 8x8 chunk Noggit uses ofsInfoMask=0. For partial
-            # chunks, write the 64-bit mask and use width/height 8 for simplicity.
+            # Rect-relative exists bitmap, bit index (z-yOffset)*width+(x-xOffset),
+            # LSB first. Noggit writes ofsInfoMask=0 when every rect cell is wet,
+            # and always emits 8 mask bytes otherwise.
+            rect_mask = 0
+            bit = 0
+            all_set = True
+            for qy in range(y_off, y_off + height):
+                for qx in range(x_off, x_off + width):
+                    if bits & (1 << (qy * 8 + qx)):
+                        rect_mask |= 1 << bit
+                    else:
+                        all_set = False
+                    bit += 1
             info_mask_offset = 0
-            if bits != 0xFFFFFFFFFFFFFFFF:
+            if not all_set:
                 info_mask_offset = header_size + len(tail)
-                tail.extend(pack_bitmap_u64(bits))
+                tail.extend(pack_bitmap_u64(rect_mask))
 
             heightmap_offset = header_size + len(tail)
             # Match Noggit's liquid_layer::save payload rules:
@@ -1071,13 +1155,13 @@ def build_mh2o(tile_x: int, tile_y: int, cfg: dict) -> bytes:
             #   lvf 2: depth bytes only, no float height grid
             # The default generator uses lvf 0. Supporting the other two keeps
             # hand-edited configs structurally closer to Noggit.
-            vertex_count = 9 * 9
+            vertex_count = (width + 1) * (height + 1)
             if lvf in (0, 1):
                 for _ in range(vertex_count):
-                    tail.extend(f32(water_level))
+                    tail.extend(f32(level))
             if lvf == 1:
-                for vz in range(9):
-                    for vx in range(9):
+                for vz in range(height + 1):
+                    for vx in range(width + 1):
                         # Noggit stores mh2o_uv as two uint16 values, roughly uv*255.
                         tail.extend(u16(int((vx / 4.0) * 255)))
                         tail.extend(u16(int((vz / 4.0) * 255)))
@@ -1088,9 +1172,9 @@ def build_mh2o(tile_x: int, tile_y: int, cfg: dict) -> bytes:
             info = b''.join([
                 u16(liquid_type),
                 u16(lvf),
-                f32(water_level),
-                f32(water_level),
-                u8(0), u8(0), u8(8), u8(8),
+                f32(level),
+                f32(level),
+                u8(x_off), u8(y_off), u8(width), u8(height),
                 u32(info_mask_offset),
                 u32(heightmap_offset),
             ])
@@ -1112,7 +1196,9 @@ def build_mh2o(tile_x: int, tile_y: int, cfg: dict) -> bytes:
 
 def build_adt(tile_x: int, tile_y: int, cfg: dict) -> bytes:
     # MTEX contains all candidate terrain textures used by MCLY layers.
-    tex_blob = b''.join(t['path'].encode('ascii', errors='replace') + b'\0' for t in texture_catalog(cfg))
+    # Paths are validated as ASCII in texture_catalog(); encode strictly so a
+    # regression fails loudly instead of writing '?' garbage the MPQ can't resolve.
+    tex_blob = b''.join(t['path'].encode('ascii') + b'\0' for t in texture_catalog(cfg))
 
     mver = chunk('MVER', u32(18))
     mcin_placeholder = chunk('MCIN', b'\0' * (256 * 16))
@@ -1201,7 +1287,9 @@ def build_wdt(map_name: str, present_tiles: set[Tuple[int, int]], cfg: Optional[
             flags = 1 if (x, y) in present_tiles else 0
             main_entries.append(u32(flags) + u32(0))
     main = chunk('MAIN', b''.join(main_entries))
-    return mver + mphd + main
+    # Blizzard terrain-only WDTs carry an empty MWMO after MAIN (no MODF).
+    # Noggit tolerates its absence, but the safest client-facing layout keeps it.
+    return mver + mphd + main + chunk('MWMO', b'')
 
 
 def build_mare(tile_x: int, tile_y: int, cfg: dict) -> bytes:
@@ -1221,14 +1309,17 @@ def build_mare(tile_x: int, tile_y: int, cfg: dict) -> bytes:
 
 
 def build_wdl(present_tiles: set[Tuple[int, int]], cfg: dict) -> bytes:
-    """Build a minimal WDL: MVER + MAOF + MARE/MAHO for every present ADT."""
-    mver = chunk('MVER', u32(18))
+    """Build a WotLK WDL: MVER + empty MWMO/MWID/MODF + MAOF + MARE per ADT."""
+    # Blizzard 3.3.5a WDLs carry empty MWMO/MWID/MODF between MVER and MAOF;
+    # Noggit's horizon loader just skips them, but keep the Blizzlike layout
+    # for the client.
+    pre = chunk('MVER', u32(18)) + chunk('MWMO', b'') + chunk('MWID', b'') + chunk('MODF', b'')
     maof_payload = bytearray(4096 * 4)
     area_chunks = bytearray()
 
     # MAOF is absolute file offsets to each MARE chunk header. The MARE chunks start
-    # immediately after MVER + MAOF.
-    base_after_maof = len(mver) + 8 + len(maof_payload)
+    # immediately after the MAOF chunk.
+    base_after_maof = len(pre) + 8 + len(maof_payload)
     for y in range(64):
         for x in range(64):
             if (x, y) not in present_tiles:
@@ -1242,7 +1333,7 @@ def build_wdl(present_tiles: set[Tuple[int, int]], cfg: dict) -> bytes:
             # MARE by MAOF offsets and explicitly leaves MAHO as a TODO, while
             # external WDL parsers document MAHO as optional hole bitmasks.
 
-    return mver + chunk('MAOF', bytes(maof_payload)) + bytes(area_chunks)
+    return pre + chunk('MAOF', bytes(maof_payload)) + bytes(area_chunks)
 
 
 # -----------------------------------------------------------------------------
@@ -1410,22 +1501,34 @@ def generate_minimaps(out: Path, map_name: str, tiles_x: Iterable[int], tiles_y:
             physical_name = minimap_output_name(map_name, x, y)
             write_blp_raw1(out / 'Textures' / 'Minimap' / physical_name, indices, MINIMAP_SIZE, MINIMAP_SIZE, palette)
             if mini_cfg.get('write_world_minimaps_copy', True):
-                write_blp_raw1(out / 'World' / 'Minimaps' / map_name / f'map{x}_{y}.blp', indices, MINIMAP_SIZE, MINIMAP_SIZE, palette)
+                # Lowercase 'world' so maps and minimaps share one folder on
+                # case-sensitive filesystems; MPQ lookups are case-insensitive.
+                write_blp_raw1(out / 'world' / 'Minimaps' / map_name / f'map{x}_{y}.blp', indices, MINIMAP_SIZE, MINIMAP_SIZE, palette)
             if mini_cfg.get('write_tga_previews', True):
                 write_tga(out / 'minimap_previews' / map_name / f'map{x}_{y}.tga', rgb_pixels, MINIMAP_SIZE, MINIMAP_SIZE)
-            trs_lines.append(f'{map_name}\\map{x}_{y}.blp\t{physical_name}\t')
+            # Exactly one tab between virtual and physical name; a trailing tab
+            # would become part of the physical filename for strict parsers.
+            trs_lines.append(f'{map_name}\\map{x}_{y}.blp\t{physical_name}')
 
     return trs_lines
 
 
-def write_md5translate(out: Path, fragments: List[str]):
-    # This is a minimal test md5translate. For a real patch, merge these lines into
-    # an extracted original md5translate.trs instead of replacing the whole file.
+def write_md5translate(out: Path, fragments: List[str], cfg: Optional[dict] = None):
+    """Write the minimap translation fragment.
+
+    The 3.3.5a client resolves ALL minimaps through a single global
+    Textures\\Minimap\\md5translate.trs; a patch MPQ replaces it wholesale.
+    Shipping a fragment-only file under the real name would therefore wipe the
+    minimaps of every stock map. By default only the *_FRAGMENT.trs is written
+    (merge it into your extracted original); set
+    minimap.write_full_md5translate=true for a disposable-test full file.
+    """
     if not fragments:
         return
     text = '\r\n'.join(fragments) + '\r\n'
-    write_file(out / 'Textures' / 'Minimap' / 'md5translate.trs', text.encode('ascii', errors='replace'))
     write_file(out / 'Textures' / 'Minimap' / 'md5translate_AIGEN_FRAGMENT.trs', text.encode('ascii', errors='replace'))
+    if (cfg or {}).get('minimap', {}).get('write_full_md5translate', False):
+        write_file(out / 'Textures' / 'Minimap' / 'md5translate.trs', text.encode('ascii', errors='replace'))
 
 
 # -----------------------------------------------------------------------------
@@ -1467,7 +1570,7 @@ def generate(cfg: dict):
         trs_fragments.extend(generate_minimaps(out, 'Azeroth', tiles_x, tiles_y, cfg))
 
     if cfg.get('minimap', {}).get('write_md5translate', True):
-        write_md5translate(out, trs_fragments)
+        write_md5translate(out, trs_fragments, cfg)
 
     wet_chunks = 0
     if cfg.get('water', {}).get('enabled', True):

@@ -401,6 +401,10 @@ def choose_mode(tile: AdtTile, cfg: dict) -> str:
         return default
     m = tile.metrics()
     ed = cfg.get('empty_detection', {})
+    # Heavily decorated tiles are finished work: auto mode must be able to
+    # answer 'preserve', not only polish/regenerate.
+    if tile.object_refs >= int(ed.get('preserve_if_object_refs_gte', 8)):
+        return 'preserve'
     if tile.object_refs <= int(ed.get('regenerate_if_object_refs_lte', 0)) and float(m['height_range']) <= float(ed.get('regenerate_if_height_range_lte', 14.0)):
         return 'regenerate'
     if tile.object_refs >= int(ed.get('polish_if_object_refs_gte', 1)):
@@ -484,6 +488,8 @@ def apply_region_modes(tiles: Dict[Tuple[int, int], AdtTile], cfg: dict):
         elif tile.mode == 'regenerate':
             if tile.object_refs:
                 tile.parse_warnings.append('REGION WARNING: regenerate mode has existing objects; heights changed but M2/WMO were preserved and may need manual review.')
+            if tile.wet_chunks:
+                tile.parse_warnings.append('REGION WARNING: regenerate mode has MH2O water; liquid heightmaps are not rewritten, so moved terrain can leave water floating or buried.')
             tile.grid = regenerate_grid(tile, cfg)
         elif tile.mode == 'auto':
             tile.grid = smooth_grid(tile.original_grid, polish_strength, polish_passes, freeze_border=2)
@@ -495,20 +501,40 @@ def apply_region_modes(tiles: Dict[Tuple[int, int], AdtTile], cfg: dict):
 def fix_seams(tiles: Dict[Tuple[int, int], AdtTile], cfg: dict):
     if not cfg.get('improve', {}).get('fix_loaded_tile_seams', True):
         return
+    # 'preserve' tiles must keep their exact bytes: when one side of a seam is
+    # preserved, snap the other side onto it; average only when both changed.
     # East/west pairs: tile x+1 west edge should match tile x east edge.
     for (tx, ty), t in list(tiles.items()):
         east = tiles.get((tx + 1, ty))
         if east:
+            t_locked = t.mode == 'preserve'
+            e_locked = east.mode == 'preserve'
             for yy in range(129):
-                avg = (t.grid[yy][128] + east.grid[yy][0]) * 0.5
-                t.grid[yy][128] = avg
-                east.grid[yy][0] = avg
+                if t_locked and e_locked:
+                    break
+                if t_locked:
+                    east.grid[yy][0] = t.grid[yy][128]
+                elif e_locked:
+                    t.grid[yy][128] = east.grid[yy][0]
+                else:
+                    avg = (t.grid[yy][128] + east.grid[yy][0]) * 0.5
+                    t.grid[yy][128] = avg
+                    east.grid[yy][0] = avg
         south = tiles.get((tx, ty + 1))
         if south:
+            t_locked = t.mode == 'preserve'
+            s_locked = south.mode == 'preserve'
             for xx in range(129):
-                avg = (t.grid[128][xx] + south.grid[0][xx]) * 0.5
-                t.grid[128][xx] = avg
-                south.grid[0][xx] = avg
+                if t_locked and s_locked:
+                    break
+                if t_locked:
+                    south.grid[0][xx] = t.grid[128][xx]
+                elif s_locked:
+                    t.grid[128][xx] = south.grid[0][xx]
+                else:
+                    avg = (t.grid[128][xx] + south.grid[0][xx]) * 0.5
+                    t.grid[128][xx] = avg
+                    south.grid[0][xx] = avg
 
 
 def bilinear_grid(grid: List[List[float]], x: float, y: float) -> float:
@@ -559,19 +585,30 @@ def recalc_mcnr_for_tile(tile: AdtTile, m: McnkRef):
 
 
 def write_grid_back(tile: AdtTile):
+    if tile.mode == 'preserve':
+        # Preserve means byte-identical terrain: no MCVT/ypos rewrite, no MCNR
+        # recalculation. fix_seams never edits preserve tiles either.
+        return
     for m in tile.mcnks:
         values: List[float] = []
+        idx = 0
         for row in range(17):
             if row % 2 == 0:
                 yy = m.cy * 8 + (row // 2)
                 for col in range(9):
                     xx = m.cx * 8 + col
                     values.append(tile.grid[yy][xx])
+                    idx += 1
             else:
+                # The 8x8 inner vertices are independent height samples, not
+                # derivable from the outer ring. Keep the original inner detail
+                # and shift it by how much the surrounding outer grid moved.
                 yy = m.cy * 8 + (row // 2) + 0.5
                 for col in range(8):
                     xx = m.cx * 8 + col + 0.5
-                    values.append(bilinear_grid(tile.grid, xx, yy))
+                    delta = bilinear_grid(tile.grid, xx, yy) - bilinear_grid(tile.original_grid, xx, yy)
+                    values.append(m.abs_heights[idx] + delta)
+                    idx += 1
         if len(values) != 145:
             raise AssertionError('bad MCVT sample count')
         new_base = values[0]
@@ -602,7 +639,8 @@ def build_wdt(present_tiles: set[Tuple[int, int]], big_alpha: bool = False) -> b
         for x in range(64):
             tile_flags = 1 if (x, y) in present_tiles else 0
             main_entries.append(u32(tile_flags) + u32(0))
-    return mver + mphd + chunk('MAIN', b''.join(main_entries))
+    # Blizzard terrain-only WDTs carry an empty MWMO after MAIN (no MODF).
+    return mver + mphd + chunk('MAIN', b''.join(main_entries)) + chunk('MWMO', b'')
 
 
 def tile_uses_big_alpha(tile: AdtTile) -> bool:
@@ -620,11 +658,14 @@ def tile_uses_big_alpha(tile: AdtTile) -> bool:
             continue
         ofs_mcly = r_u32(data, ds + 28)
         ofs_mcal = r_u32(data, ds + 36)
-        mcly = m.start + ofs_mcly
-        mcal = m.start + ofs_mcal
-        if not (0 <= mcly <= len(data)-8 and data[mcly:mcly+4] == magic('MCLY')):
-            continue
-        if not (0 <= mcal <= len(data)-8 and data[mcal:mcal+4] == magic('MCAL')):
+        # Match parse_adt's tolerance for tools that store subchunk offsets
+        # relative to the header start instead of the MCNK fourcc; otherwise
+        # big-alpha ADTs from such tools silently read as 'not big alpha'.
+        mcly = next((c for c in (m.start + ofs_mcly, ds + ofs_mcly)
+                     if 0 <= c <= len(data)-8 and data[c:c+4] == magic('MCLY')), -1)
+        mcal = next((c for c in (m.start + ofs_mcal, ds + ofs_mcal)
+                     if 0 <= c <= len(data)-8 and data[c:c+4] == magic('MCAL')), -1)
+        if mcly < 0 or mcal < 0:
             continue
         mcal_size = r_u32(data, mcal + 4)
         alpha_offsets = []
@@ -654,16 +695,14 @@ def normalize_wdt_bytes(wdt_bytes: bytes, present_tiles: set[Tuple[int, int]], b
         return build_wdt(present_tiles, big_alpha)
     mphd_pos, mphd_size = by_name['MPHD']
     if mphd_size >= 4:
-        # Mirror Noggit's required shading flag, but do not blindly preserve
-        # the WDT big-alpha flag from the source. Reverse mode may be improving
-        # old-alpha ADTs; carrying 0x04 forward would make future Noggit saves
-        # use big-alpha for those tiles even when their MCAL layers are old 2048
-        # nibble alpha. Only set 0x04 when the actual ADTs require it.
+        # Mirror Noggit's required shading flag. The big-alpha bit is map-global
+        # and reverse mode may only be processing a subset of the map's tiles,
+        # so never CLEAR an existing 0x04 based on subset inference (that would
+        # make the client parse every other tile's 4096-byte MCAL as 4-bit);
+        # only OR it in when the processed ADTs demonstrably need it.
         flags = r_u32(b, mphd_pos + 8) | 0x02
         if big_alpha:
             flags |= 0x04
-        else:
-            flags &= ~0x04
         struct.pack_into('<I', b, mphd_pos + 8, flags)
     main_pos, main_size = by_name['MAIN']
     if main_size >= 64 * 64 * 8:
@@ -687,10 +726,11 @@ def build_mare_from_tile(tile: AdtTile) -> bytes:
 
 
 def build_wdl_from_tiles(tiles: Dict[Tuple[int, int], AdtTile]) -> bytes:
-    mver = chunk('MVER', u32(18))
+    # Blizzard 3.3.5a WDLs carry empty MWMO/MWID/MODF between MVER and MAOF.
+    pre = chunk('MVER', u32(18)) + chunk('MWMO', b'') + chunk('MWID', b'') + chunk('MODF', b'')
     maof_payload = bytearray(4096 * 4)
     area_chunks = bytearray()
-    base_after_maof = len(mver) + 8 + len(maof_payload)
+    base_after_maof = len(pre) + 8 + len(maof_payload)
     for y in range(64):
         for x in range(64):
             t = tiles.get((x, y))
@@ -701,7 +741,62 @@ def build_wdl_from_tiles(tiles: Dict[Tuple[int, int], AdtTile]) -> bytes:
             area_chunks.extend(build_mare_from_tile(t))
             # MAHO is optional hole data. Reverse mode currently preserves/edits
             # no terrain holes, so omit MAHO rather than writing all-ones masks.
-    return mver + chunk('MAOF', bytes(maof_payload)) + bytes(area_chunks)
+    return pre + chunk('MAOF', bytes(maof_payload)) + bytes(area_chunks)
+
+
+def splice_wdl(source: bytes, tiles: Dict[Tuple[int, int], AdtTile]) -> bytes:
+    """Update a whole-map WDL in place of rebuilding it from a tile subset.
+
+    The WDL covers all 64x64 tiles of the map; reverse mode often processes
+    only a group of ADTs. Rebuilding from that subset would zero the MAOF
+    entries of every other tile and delete their distant-horizon terrain.
+    Instead, keep every chunk before MAOF verbatim, keep unprocessed tiles'
+    MARE/MAHO blocks, and swap in freshly built MARE data (plus the original
+    MAHO, holes are unedited) for the processed tiles.
+    """
+    chunks = scan_chunks(source)
+    maof = next(((p, s) for p, n, s in chunks if n == 'MAOF'), None)
+    if maof is None or maof[1] < 64 * 64 * 4:
+        return build_wdl_from_tiles(tiles)
+    maof_pos, _maof_size = maof
+
+    def tile_block(off: int) -> bytes:
+        if not (0 <= off <= len(source) - 8) or source[off:off+4] != magic('MARE'):
+            return b''
+        end = off + 8 + r_u32(source, off + 4)
+        if source[end:end+4] == magic('MAHO'):
+            end += 8 + r_u32(source, end + 4)
+        return bytes(source[off:end])
+
+    blocks: Dict[Tuple[int, int], bytes] = {}
+    for y in range(64):
+        for x in range(64):
+            off = r_u32(source, maof_pos + 8 + (y * 64 + x) * 4)
+            if off:
+                blk = tile_block(off)
+                if blk:
+                    blocks[(x, y)] = blk
+    for (x, y), t in tiles.items():
+        old = blocks.get((x, y), b'')
+        maho = b''
+        if old:
+            mare_end = 8 + r_u32(old, 4)
+            if old[mare_end:mare_end+4] == magic('MAHO'):
+                maho = old[mare_end:]
+        blocks[(x, y)] = build_mare_from_tile(t) + maho
+
+    head = bytes(source[:maof_pos])
+    maof_payload = bytearray(4096 * 4)
+    body = bytearray()
+    base = len(head) + 8 + len(maof_payload)
+    for y in range(64):
+        for x in range(64):
+            blk = blocks.get((x, y))
+            if not blk:
+                continue
+            struct.pack_into('<I', maof_payload, (y * 64 + x) * 4, base + len(body))
+            body.extend(blk)
+    return head + chunk('MAOF', bytes(maof_payload)) + bytes(body)
 
 
 def minimap_color(tile: AdtTile, px: int, py: int, palette: List[Tuple[int, int, int, int]], mn: float, mx: float, low_q: float) -> Tuple[int, Tuple[int, int, int]]:
@@ -746,11 +841,16 @@ def generate_minimaps(out: Path, map_name: str, tiles: Dict[Tuple[int, int], Adt
             write_blp_raw1(out / 'Textures' / 'Minimap' / physical, bytes(indices), MINIMAP_SIZE, MINIMAP_SIZE, pal)
         if cfg.get('outputs', {}).get('write_tga_previews', True):
             write_tga(out / 'minimap_previews' / map_name / f'map{tx}_{ty}.tga', rgb, MINIMAP_SIZE, MINIMAP_SIZE)
-        lines.append(f'{map_name}\\map{tx}_{ty}.blp\t{physical}\t')
+        # Exactly one tab between virtual and physical name; no trailing tab.
+        lines.append(f'{map_name}\\map{tx}_{ty}.blp\t{physical}')
     if cfg.get('outputs', {}).get('write_md5translate_fragment', True):
         text = '\r\n'.join(lines) + '\r\n'
         write_file(out / 'Textures' / 'Minimap' / f'md5translate_{map_name.upper()}_FRAGMENT.trs', text.encode('ascii', errors='replace'))
-        write_file(out / 'Textures' / 'Minimap' / 'md5translate.trs', text.encode('ascii', errors='replace'))
+        # md5translate.trs is one global file for ALL maps; a fragment-only
+        # replacement wipes every stock map's minimap. Full-file write is a
+        # disposable-test opt-in; merge the fragment for real patches.
+        if cfg.get('outputs', {}).get('write_full_md5translate', False):
+            write_file(out / 'Textures' / 'Minimap' / 'md5translate.trs', text.encode('ascii', errors='replace'))
     return lines
 
 # -----------------------------------------------------------------------------
@@ -829,7 +929,14 @@ def copy_passthrough_files(cfg: dict, out_root: Path, tiles: Dict[Tuple[int, int
     out_map = out_root / 'world' / 'maps' / cfg.get('map_name', 'aigen')
     out_map.mkdir(parents=True, exist_ok=True)
     map_name = cfg.get('map_name', 'aigen')
+    # The WDT/WDL cover the whole map, not just the processed subset: mark
+    # every ADT that exists in the input folder, or a cfg 'tiles' filter would
+    # emit a WDT that hides all unprocessed tiles when packed as a patch.
     present = set(tiles.keys())
+    for p in in_map.glob(f'{map_name}_*_*.adt'):
+        info = parse_tile_name(p)
+        if info:
+            present.add((info[1], info[2]))
     inferred_big_alpha = any(tile_uses_big_alpha(t) for t in tiles.values())
     wdt_source: Optional[Path] = None
     # Copy non-ADT files first; WDL can be replaced after, WDT is normalized below.
@@ -872,7 +979,13 @@ def improve(config_path: str | Path = 'reverse_config.json'):
         for (tx, ty), t in tiles.items():
             write_file(out_map / f'{map_name}_{tx}_{ty}.adt', bytes(t.data))
     if cfg.get('outputs', {}).get('write_wdl', True):
-        write_file(out_map / f'{map_name}.wdl', build_wdl_from_tiles(tiles))
+        # Splice into the source WDL when one exists so unprocessed tiles keep
+        # their distant-horizon data; only build from scratch without a source.
+        wdl_source = Path(cfg.get('input_dir', 'input_existing')) / 'world' / 'maps' / map_name / f'{map_name}.wdl'
+        if wdl_source.exists():
+            write_file(out_map / f'{map_name}.wdl', splice_wdl(wdl_source.read_bytes(), tiles))
+        else:
+            write_file(out_map / f'{map_name}.wdl', build_wdl_from_tiles(tiles))
     generate_minimaps(out_root, map_name, tiles, cfg)
     report = '\n'.join(report_lines(tiles)) + '\n'
     write_file(out_root / 'REVERSE_IMPROVE_REPORT.txt', report.encode('utf-8'))

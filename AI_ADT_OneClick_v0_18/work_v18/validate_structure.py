@@ -38,11 +38,14 @@ def scan_chunks(b):
     return out
 
 def decompress_rle_alpha(data: bytes) -> bytes:
+    # Mirrors Noggit's Alphamap::readCompressed exactly: zero-count control
+    # bytes are skipped and an overlong final run is clamped to the 4096-byte
+    # output, so the validator does not reject files the real consumer accepts.
     out=bytearray(); i=0
     while i < len(data) and len(out) < 4096:
-        c=data[i]; i+=1; mode=c & 0x80; count=c & 0x7F
+        c=data[i]; i+=1; mode=c & 0x80; count=min(c & 0x7F, 4096 - len(out))
         if count == 0:
-            raise AssertionError('RLE alpha control byte had zero count')
+            continue
         if mode:
             assert i < len(data), 'RLE alpha EOF in fill mode'
             out.extend([data[i]] * count); i += 1
@@ -95,7 +98,10 @@ def extract_outer_grid(path: Path):
                     if grid[gy][gx] is None:
                         grid[gy][gx] = h
                     else:
-                        grid[gy][gx] = (grid[gy][gx] + h) * 0.5
+                        # Shared border vertices are stored once per adjacent
+                        # chunk; disagreement is a visible intra-tile crack, so
+                        # assert instead of averaging it away.
+                        assert abs(grid[gy][gx] - h) <= 0.03, (path, 'intra-tile chunk seam mismatch', gx, gy, grid[gy][gx], h)
                     idx += 1
             else:
                 idx += 8
@@ -128,16 +134,36 @@ def check_adt_seams(adt_by_map: dict[Path, list[Path]], tolerance: float = 0.03)
     if adt_by_map:
         print('OK ADT seams: adjacent ADT border heights match')
 
-def check_adt(path: Path):
+def check_adt(path: Path, expect_big_alpha: bool | None = None):
     tile_xy = expected_tile_xy(path)
     b=path.read_bytes(); top=scan_chunks(b); names=[n for _,n,_ in top[:16]]
     for need in ['MVER','MHDR','MCIN','MTEX']:
         assert need in names, (path, need, names)
+    mver_pos, _, mver_size = next((p,n,s) for p,n,s in top if n=='MVER')
+    assert mver_size == 4 and u32(b, mver_pos+8) == 18, (path, 'ADT MVER must be size 4, version 18')
+    # Noggit/the client navigate the ADT purely through MHDR: every offset must
+    # equal chunk_header_file_pos - 0x14, zero when the chunk is absent.
+    mhdr_pos = next(p for p,n,s in top if n=='MHDR')
+    assert mhdr_pos == 0x0C, (path, 'MHDR must sit at file offset 0x0C')
+    chunk_pos = {n: p for p,n,s in top}
+    mhdr_fields = ['MCIN','MTEX','MMDX','MMID','MWMO','MWID','MDDF','MODF']
+    for fi, name in enumerate(mhdr_fields):
+        got = u32(b, 0x14 + 4 + fi*4)
+        assert name in chunk_pos, (path, 'missing chunk', name)
+        assert got == chunk_pos[name] - 0x14, (path, f'MHDR.{name.lower()} offset', got, chunk_pos[name] - 0x14)
+    mhdr_flags = u32(b, 0x14)
+    mhdr_mfbo = u32(b, 0x14 + 0x24); mhdr_mh2o = u32(b, 0x14 + 0x28); mhdr_mtxf = u32(b, 0x14 + 0x2C)
+    assert mhdr_flags == 0 and mhdr_mfbo == 0 and mhdr_mtxf == 0, (path, 'unexpected MHDR flags/mfbo/mtxf', mhdr_flags, mhdr_mfbo, mhdr_mtxf)
+    if 'MH2O' in chunk_pos:
+        assert mhdr_mh2o == chunk_pos['MH2O'] - 0x14, (path, 'MHDR.mh2o offset', mhdr_mh2o, chunk_pos['MH2O'] - 0x14)
+    else:
+        assert mhdr_mh2o == 0, (path, 'MHDR.mh2o must be 0 without an MH2O chunk')
     mtex_pos, _, mtex_size = next((p,n,s) for p,n,s in top if n=='MTEX')
     mtex_payload = b[mtex_pos+8:mtex_pos+8+mtex_size]
     assert mtex_size == 0 or mtex_payload.endswith(b'\0'), (path, 'MTEX must end with one NUL terminator')
     # Noggit scans MTEX until chunk end; padding NULs create empty texture names.
     assert b'\0\0' not in mtex_payload, (path, 'MTEX contains an empty texture name; likely NUL padding')
+    n_textures = len([t for t in mtex_payload.split(b'\0') if t])
     mcin = next((p for p,n,s in top if n=='MCIN'), None); assert mcin is not None
     mcin_data = mcin+8; mcnk_count=0; alpha_maps=0; compressed_maps=0
     pos_y_samples=[]
@@ -192,6 +218,12 @@ def check_adt(path: Path):
             ofs_mcse = u32(b, ds + 88)
             cand_mcse = off + ofs_mcse
             assert cand_mcse <= len(b)-8 and b[cand_mcse:cand_mcse+4] == magic('MCSE'), (path, i, 'MCSE', cand_mcse, b[cand_mcse:cand_mcse+4])
+            for li in range(n_layers):
+                lo = cand + 8 + li*16
+                tex_id = u32(b, lo)
+                assert tex_id < n_textures, (path, i, li, 'MCLY textureID out of MTEX range', tex_id, n_textures)
+            layer0_flags = u32(b, cand + 8 + 4); layer0_off = u32(b, cand + 8 + 8)
+            assert (layer0_flags & 0x300) == 0 and layer0_off == 0, (path, i, 'layer 0 must not carry alpha flags/offset', layer0_flags, layer0_off)
             if n_layers > 1:
                 layer_offsets=[]
                 for li in range(1, n_layers):
@@ -208,8 +240,14 @@ def check_adt(path: Path):
                     if flags & 0x200:
                         compressed_maps += 1
                         decompress_rle_alpha(alpha_blob)
-                    else:
+                    elif expect_big_alpha is None:
                         assert len(alpha_blob) in (2048,4096), (path, i, li, 'raw alpha length', len(alpha_blob))
+                    else:
+                        # The client picks 4096- vs 2048-byte MCAL from the WDT
+                        # MPHD big-alpha flag for the WHOLE map; a mixed file is
+                        # misparsed even if each blob has a plausible size.
+                        want = 4096 if expect_big_alpha else 2048
+                        assert len(alpha_blob) == want, (path, i, li, 'raw alpha length vs WDT big-alpha flag', len(alpha_blob), want)
             mcnk_count+=1
     assert mcnk_count == 256, (path, 'expected 256 MCNKs', mcnk_count)
     mh2o = next((p for p,n,s in top if n=='MH2O'), None); wet=0
@@ -227,10 +265,13 @@ def check_adt(path: Path):
                     ipos = mh2o + 8 + off + layer*24
                     liquid_id = struct.unpack_from('<H', b, ipos)[0]
                     lvf = struct.unpack_from('<H', b, ipos+2)[0]
+                    x_off = b[ipos+12]; y_off = b[ipos+13]
                     width = b[ipos+14]; height = b[ipos+15]
                     mask_off = u32(b, ipos+16); hm_off = u32(b, ipos+20)
-                    assert liquid_id >= 0 and lvf in (0,1,2), (path, i, 'bad liquid id/format', liquid_id, lvf)
+                    assert liquid_id != 0 and lvf in (0,1,2), (path, i, 'bad liquid id/format', liquid_id, lvf)
                     assert 1 <= width <= 8 and 1 <= height <= 8, (path, i, 'bad water dimensions', width, height)
+                    # Vertex reads iterate a 9x9 grid; the rect must stay inside it.
+                    assert x_off + width <= 8 and y_off + height <= 8, (path, i, 'water rect outside 8x8 grid', x_off, y_off, width, height)
                     if mask_off:
                         assert mask_off >= 256*12 and mask_off + 8 <= mh2o_size, (path, i, 'MH2O mask offset', mask_off, mh2o_size)
                     if hm_off:
@@ -286,16 +327,21 @@ def adt_requires_big_alpha(path: Path) -> bool:
     return False
 
 def check_wdt(path: Path, required_tiles: set[tuple[int,int]] | None = None, needs_big_alpha: bool = False):
-    b=path.read_bytes(); top=scan_chunks(b); assert [n for _,n,_ in top[:3]] == ['MVER','MPHD','MAIN']
+    b=path.read_bytes(); top=scan_chunks(b); assert [n for _,n,_ in top[:3]] == ['MVER','MPHD','MAIN'], [n for _,n,_ in top]
+    mver=next(p for p,n,s in top if n=='MVER')
+    assert u32(b, mver+4) == 4 and u32(b, mver+8) == 18, (path, 'WDT MVER must be size 4, version 18')
     mphd=next(p for p,n,s in top if n=='MPHD'); mphd_flags=u32(b,mphd+8)
+    assert u32(b, mphd+4) == 32, (path, 'MPHD payload must be 32 bytes', u32(b, mphd+4))
     assert mphd_flags & 0x02, (path, 'MPHD missing Noggit FLAG_SHADING 0x02', mphd_flags)
+    assert not (mphd_flags & 0x01), (path, 'terrain WDT must not claim a global WMO', mphd_flags)
     if needs_big_alpha:
         assert mphd_flags & 0x04, (path, 'ADTs use big/compressed alphamaps but WDT missing MPHD big-alpha flag 0x04', mphd_flags)
-    else:
-        assert not (mphd_flags & 0x04), (path, 'WDT has big-alpha flag 0x04 but no ADT appears to require big/compressed alphamaps', mphd_flags)
-    if mphd_flags & 0x04:
-        assert (mphd_flags & 0x06) == 0x06, (path, 'big-alpha WDT should also carry shading flag', mphd_flags)
+    elif mphd_flags & 0x04:
+        # Big-alpha with zero multi-layer chunks is harmless: the flag only
+        # selects the MCAL decode size and there is nothing to decode.
+        print(f'NOTE {path}: WDT big-alpha flag set but no ADT strictly requires it')
     main = next(p for p,n,s in top if n=='MAIN'); present=[]
+    assert u32(b, main+4) == 64*64*8, (path, 'MAIN payload must be 32768 bytes', u32(b, main+4))
     for y in range(64):
         for x in range(64):
             flags=u32(b,main+8+(y*64+x)*8)
@@ -306,8 +352,16 @@ def check_wdt(path: Path, required_tiles: set[tuple[int,int]] | None = None, nee
     print(f'OK WDT {path}: mphd_flags=0x{mphd_flags:08X}, present={present}')
 
 def check_wdl(path: Path):
-    b=path.read_bytes(); top=scan_chunks(b); assert [n for _,n,_ in top[:2]] == ['MVER','MAOF'], [n for _,n,_ in top]
+    b=path.read_bytes(); top=scan_chunks(b)
+    names=[n for _,n,_ in top]
+    assert names[0] == 'MVER', names
+    mver=next(p for p,n,s in top if n=='MVER')
+    assert u32(b, mver+4) == 4 and u32(b, mver+8) == 18, (path, 'WDL MVER must be size 4, version 18')
+    # Blizzard 3.3.5a layout: MVER, empty MWMO/MWID/MODF, MAOF, MARE blocks.
+    pre_maof = names[1:names.index('MAOF')] if 'MAOF' in names else names[1:]
+    assert all(n in ('MWMO','MWID','MODF') for n in pre_maof), (path, 'unexpected chunks before MAOF', names[:6])
     maof=next(p for p,n,s in top if n=='MAOF'); present=[]
+    assert u32(b, maof+4) == 64*64*4, (path, 'MAOF payload must be 16384 bytes', u32(b, maof+4))
     for y in range(64):
         for x in range(64):
             off=u32(b, maof+8+(y*64+x)*4)
@@ -349,7 +403,17 @@ for p in sorted(map_root.rglob('*.wdt')):
     needs_big = any(adt_requires_big_alpha(adt) for adt in adts)
     check_wdt(p, required, needs_big)
 for p in sorted(map_root.rglob('*.wdl')): check_wdl(p)
-for p in sorted(map_root.rglob('*.adt')): check_adt(p)
+for p in sorted(map_root.rglob('*.adt')):
+    # The WDT MPHD big-alpha flag decides MCAL decoding for the whole map, so
+    # raw layer sizes are validated against it when the map's WDT is present.
+    wdt = p.parent / f"{p.parent.name}.wdt"
+    expect_big = None
+    if wdt.exists():
+        wb = wdt.read_bytes()
+        mphd = next((pos for pos,n,s in scan_chunks(wb) if n == 'MPHD'), None)
+        if mphd is not None:
+            expect_big = bool(u32(wb, mphd+8) & 0x04)
+    check_adt(p, expect_big)
 check_adt_seams(adt_by_map)
 for p in sorted((root/'Textures'/'Minimap').glob('*.blp')): check_blp(p)
 print(f'All structural checks passed for {root}.')
