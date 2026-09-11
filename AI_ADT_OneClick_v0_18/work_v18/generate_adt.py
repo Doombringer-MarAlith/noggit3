@@ -31,10 +31,11 @@ DEFAULT_CONFIG = {
     "map_name": "aigen",
     "tiles_x": [32, 33],
     "tiles_y": [32, 33],
-    "base_texture": "tileset\\elwynn\\elwynngrassbase.blp",
+    "base_texture": "Tileset\\Elwynn\\ElwynnGrassBase.blp",
     "texture_painting": {
         "enabled": True,
         "learned_rules_path": "learned_blizzlike_rules.json",
+        "listfile_path": "tileset_listfile_335.txt",
         "max_layers_per_chunk": 4,
         "alpha_mode": "raw_4096",
         "breakup": 0.22
@@ -64,7 +65,7 @@ DEFAULT_CONFIG = {
         "enabled": True,
         "tile_size": 256,
         "write_tga_previews": True,
-        "write_world_minimaps_copy": True,
+        "write_world_minimaps_copy": False,
         "write_md5translate": True,
         "write_full_md5translate": False
     },
@@ -169,13 +170,17 @@ def attach_zone_spec(cfg: dict, explicit_keys: Optional[set[str]] = None) -> dic
 # Texture catalog (MTEX) and roles
 # -----------------------------------------------------------------------------
 
+# Every path below exists in the 3.3.5a client MPQs (see tileset_listfile_335.txt);
+# a texture the client cannot find renders as blank green ground.
 DEFAULT_TEXTURE_LAYERS = [
-    {"role": "base", "label": "grass base", "path": "tileset\\elwynn\\elwynngrassbase.blp", "priority": 0.05},
-    {"role": "road", "label": "dirt road", "path": "tileset\\elwynn\\elwynndirtbase.blp", "priority": 0.95},
-    {"role": "rock", "label": "slope rock", "path": "tileset\\elwynn\\elwynnrock.blp", "priority": 0.70},
-    {"role": "forest", "label": "forest floor", "path": "tileset\\ashenvale\\ashenvaledarkgrass.blp", "priority": 0.35},
-    {"role": "shore", "label": "muddy shore", "path": "tileset\\elwynn\\elwynndirtbase.blp", "priority": 0.55},
-    {"role": "snow", "label": "snow patch", "path": "tileset\\northrend\\snow\\snow01.blp", "priority": 0.45},
+    {"role": "base", "label": "grass base", "path": "Tileset\\Elwynn\\ElwynnGrassBase.blp", "priority": 0.05},
+    {"role": "road", "label": "dirt road", "path": "Tileset\\Elwynn\\ElwynnDirtBase.blp", "priority": 0.95},
+    {"role": "rock", "label": "slope rock", "path": "Tileset\\Elwynn\\ElwynnRockBase.blp", "priority": 0.70},
+    {"role": "forest", "label": "forest floor", "path": "Tileset\\Elwynn\\ElwynnGrassShadow.blp", "priority": 0.35},
+    {"role": "shore", "label": "muddy shore", "path": "Tileset\\Elwynn\\ElwynnRiverMudBase.blp", "priority": 0.55},
+    {"role": "sand", "label": "sand", "path": "Tileset\\Ashenvale\\AshenvaleSand.blp", "priority": 0.50},
+    {"role": "snow", "label": "snow patch", "path": "Tileset\\IronForge\\IronForgeSnow01solid.blp", "priority": 0.45},
+    {"role": "plague", "label": "plague dirt", "path": "Tileset\\PlagueLandsEast\\EastPlaguedBaseDirt.blp", "priority": 0.52},
 ]
 
 # Minimap tint per role (RGB) and per theme base ground.
@@ -309,6 +314,20 @@ def texture_catalog(cfg: dict) -> List[Dict[str, Any]]:
     for item in DEFAULT_TEXTURE_LAYERS:
         add(item['role'], item['path'], item['label'], item['priority'])
 
+    # Optional client listfile check: any MTEX path missing from the client renders
+    # as the missing-texture fallback, so warn early when a listfile is available.
+    listfile = Path(str(cfg.get('texture_painting', {}).get('listfile_path') or 'tileset_listfile_335.txt'))
+    if not listfile.exists():
+        listfile = Path(__file__).resolve().parent / 'tileset_listfile_335.txt'
+    if listfile.exists():
+        try:
+            known = {line.strip().replace('/', '\\').lower() for line in listfile.read_text(encoding='utf-8', errors='replace').splitlines()}
+            for item in out:
+                if item['path'].lower() not in known:
+                    print(f"Warning: texture {item['path']} not found in {listfile.name}; the client will show a fallback texture")
+        except OSError as e:
+            print(f'Warning: could not read {listfile}: {e}')
+
     # WoW terrain chunks can only use a few layers at a time, but MTEX may list more.
     cfg['_texture_catalog_cached'] = out[:32]
     cfg['_texture_role_alias'] = {r: i for r, i in role_alias.items() if i < len(cfg['_texture_catalog_cached'])}
@@ -324,9 +343,13 @@ def texture_catalog(cfg: dict) -> List[Dict[str, Any]]:
     return cfg['_texture_catalog_cached']
 
 
+NO_GROUND_EFFECT = 0xFFFFFFFF  # documented "no detail doodads" value (GroundEffectTexture has no row 0 or 65535)
+
+
 def layer_effect_id(cfg: dict, path: str) -> int:
-    """MCLY effectId: learned GroundEffectTexture id for this texture, else Noggit's 0xFFFF default."""
-    return int((cfg.get('_texture_effects') or {}).get(path.lower(), 0xFFFF))
+    """MCLY effectId: learned GroundEffectTexture id for this texture, else 'none'."""
+    eff = int((cfg.get('_texture_effects') or {}).get(path.lower(), NO_GROUND_EFFECT))
+    return NO_GROUND_EFFECT if eff in (0xFFFF, 0xFFFFFFFF) else eff
 
 
 # -----------------------------------------------------------------------------
@@ -976,15 +999,16 @@ def write_minimap_tile(out: Path, map_name: str, x: int, y: int, fields: TileFie
     indices, rgb_pixels, palette = build_minimap_tile(fields, cfg)
     physical_name = minimap_output_name(map_name, x, y)
     write_blp_raw1(out / 'Textures' / 'Minimap' / physical_name, indices, MINIMAP_SIZE, MINIMAP_SIZE, palette)
-    if mini_cfg.get('write_world_minimaps_copy', True):
-        # Lowercase 'world' so maps and minimaps share one folder on
-        # case-sensitive filesystems; MPQ lookups are case-insensitive.
-        write_blp_raw1(out / 'world' / 'Minimaps' / map_name / f'map{x}_{y}.blp', indices, MINIMAP_SIZE, MINIMAP_SIZE, palette)
+    if mini_cfg.get('write_world_minimaps_copy', False):
+        # World\Minimaps\<map>\ is the Cataclysm+ location; 3.3.5a only uses the
+        # trs. Kept as an opt-in for tools that read it.
+        write_blp_raw1(out / 'world' / 'Minimaps' / map_name / f'map{x}_{y:02d}.blp', indices, MINIMAP_SIZE, MINIMAP_SIZE, palette)
     if mini_cfg.get('write_tga_previews', True):
         write_tga(out / 'minimap_previews' / map_name / f'map{x}_{y}.tga', rgb_pixels, MINIMAP_SIZE, MINIMAP_SIZE)
-    # Exactly one tab between virtual and physical name; a trailing tab would
-    # become part of the physical filename for strict parsers.
-    return f'{map_name}\\map{x}_{y}.blp\t{physical_name}'
+    # Blizzard keys: <Directory>\map<x>_<yy>.blp with y zero-padded to 2 digits;
+    # exactly one tab before the physical name (a trailing tab would be read as
+    # part of the filename by strict parsers).
+    return f'{map_name}\\map{x}_{y:02d}.blp\t{physical_name}'
 
 
 def write_md5translate(out: Path, fragments: List[str], cfg: Optional[dict] = None):

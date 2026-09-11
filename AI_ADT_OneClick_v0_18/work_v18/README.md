@@ -35,6 +35,24 @@ all agree with each other and with neighbouring tiles.
 
 Generation runs at roughly 8-10 s per ADT in plain Python.
 
+Client-fact fixes from the same pass (verified against real 3.3.5a MPQ
+listfiles and a Blizzard ADT sample):
+
+- Every built-in texture path used to be a guess and, except for two Elwynn
+  files, **did not exist in the client** (blank green ground). All biome
+  defaults now use real `Tileset\...` names, and `tileset_listfile_335.txt`
+  (the 2300 `Tileset\` entries of the WotLK client MPQs) ships with the tool:
+  the generator and the validator warn about any MTEX path missing from it.
+  Put your own client `listfile.txt` next to the scripts to override it.
+- MCNR normals are the client-space (X north, Y west, Z up) normal; verified
+  geometrically against a Blizzard ADT (dot 0.99).
+- md5translate.trs keys zero-pad the tile row (`map32_08.blp`), exactly one
+  tab, CRLF; `World\Minimaps\` copies are Cataclysm-only and now opt-in.
+- MCLY effectId "none" is 0xFFFFFFFF (GroundEffectTexture.dbc has no row 0 or
+  65535); learned ids from real ADTs are used whenever available.
+- `patch_dbc.py` defaults follow the Azeroth row (ExpansionID 0, LoadingScreen
+  4, CorpseMapID -1, TimeOfDayOverride -1, localized-string mask 0xFF01FE).
+
 ## v0.19 external audit fixes (Noggit-source cross-review)
 
 This pass audited every writer against the actual Noggit 3.3.5a load/save code

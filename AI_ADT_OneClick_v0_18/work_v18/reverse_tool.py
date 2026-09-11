@@ -846,8 +846,8 @@ def generate_minimaps(out: Path, map_name: str, tiles: Dict[Tuple[int, int], Adt
             write_blp_raw1(out / 'Textures' / 'Minimap' / physical, bytes(indices), MINIMAP_SIZE, MINIMAP_SIZE, pal)
         if cfg.get('outputs', {}).get('write_tga_previews', True):
             write_tga(out / 'minimap_previews' / map_name / f'map{tx}_{ty}.tga', rgb, MINIMAP_SIZE, MINIMAP_SIZE)
-        # Exactly one tab between virtual and physical name; no trailing tab.
-        lines.append(f'{map_name}\\map{tx}_{ty}.blp\t{physical}')
+        # Blizzard keys zero-pad y to 2 digits; exactly one tab, no trailing tab.
+        lines.append(f'{map_name}\\map{tx}_{ty:02d}.blp\t{physical}')
     if cfg.get('outputs', {}).get('write_md5translate_fragment', True):
         text = '\r\n'.join(lines) + '\r\n'
         write_file(out / 'Textures' / 'Minimap' / f'md5translate_{map_name.upper()}_FRAGMENT.trs', text.encode('ascii', errors='replace'))

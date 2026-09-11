@@ -175,8 +175,8 @@ def add_area_row(dbc: Dbc, area_id: int, map_id: int, name: str, explore_level: 
     row[10] = explore_level
     row[11:28] = localized(dbc, name)
     row[28] = 0
-    row[33] = f32bits(-500.0)
-    row[34] = f32bits(1.0)
+    row[33] = f32bits(-500.0)   # MinElevation, as on Blizzard zones
+    row[34] = f32bits(0.0)      # Ambient_multiplier, 0 on Blizzard zones
     row[35] = 0
     dbc.records.append(row)
 
@@ -197,8 +197,8 @@ def main() -> None:
     ap.add_argument('--display-name', default=None)
     ap.add_argument('--area-id', type=int, default=None, help='AreaTable id to create (0 = skip AreaTable)')
     ap.add_argument('--area-name', default=None)
-    ap.add_argument('--expansion', type=int, default=2, help='0 classic, 1 TBC, 2 WotLK')
-    ap.add_argument('--loading-screen', type=int, default=0)
+    ap.add_argument('--expansion', type=int, default=0, help='0 classic (like Azeroth), 1 TBC, 2 WotLK')
+    ap.add_argument('--loading-screen', type=int, default=4, help='LoadingScreens.dbc id; 4 = Eastern Kingdoms, 3 = Kalimdor, 216 = Northrend')
     ap.add_argument('--instance-type', type=int, default=0)
     ap.add_argument('--corpse-map', type=int, default=-1)
     args = ap.parse_args()

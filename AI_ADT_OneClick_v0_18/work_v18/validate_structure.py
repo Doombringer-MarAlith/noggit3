@@ -163,7 +163,18 @@ def check_adt(path: Path, expect_big_alpha: bool | None = None):
     assert mtex_size == 0 or mtex_payload.endswith(b'\0'), (path, 'MTEX must end with one NUL terminator')
     # Noggit scans MTEX until chunk end; padding NULs create empty texture names.
     assert b'\0\0' not in mtex_payload, (path, 'MTEX contains an empty texture name; likely NUL padding')
-    n_textures = len([t for t in mtex_payload.split(b'\0') if t])
+    texture_names = [t.decode('ascii', 'replace') for t in mtex_payload.split(b'\0') if t]
+    n_textures = len(texture_names)
+    # Warn about textures the client does not have (listfile.txt, else the bundled
+    # 3.3.5a Tileset listfile next to the scripts).
+    listfile = Path('listfile.txt')
+    if not listfile.exists():
+        listfile = Path(__file__).resolve().parent / 'tileset_listfile_335.txt'
+    if listfile.exists():
+        known = {line.strip().replace('/', '\\').lower() for line in listfile.read_text(encoding='utf-8', errors='replace').splitlines()}
+        for t in texture_names:
+            if t.replace('/', '\\').lower() not in known:
+                print(f'WARNING {path}: MTEX texture {t} is not in {listfile.name}; the client will render it blank')
     mcin = next((p for p,n,s in top if n=='MCIN'), None); assert mcin is not None
     mcin_data = mcin+8; mcnk_count=0; alpha_maps=0; compressed_maps=0
     pos_y_samples=[]

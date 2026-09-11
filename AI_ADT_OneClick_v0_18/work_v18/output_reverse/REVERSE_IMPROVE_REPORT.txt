@@ -1,6 +1,6 @@
 AI ADT One-Click v0.17 reverse analysis
 
-Tile 32,32 mode=regenerate h_range=76.575 avg_slope=0.2602 rough=0.0997 textures=12 objects=0 m2=0 wmo=0 wet_chunks=61
+Tile 32,32 mode=regenerate h_range=76.575 avg_slope=0.2602 rough=0.0997 textures=15 objects=0 m2=0 wmo=0 wet_chunks=61
   WARNING: REGION WARNING: regenerate mode has MH2O water; liquid heightmaps are not rewritten, so moved terrain can leave water floating or buried.
 
 Mode meanings: preserve=no height edits; polish=conservative smoothing; regenerate=procedural redo blended into edges; M2/WMO are preserved but not edited.

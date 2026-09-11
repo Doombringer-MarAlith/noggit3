@@ -49,51 +49,52 @@ DEFAULT_AI_CONFIG = {
 
 BIOME_LIBRARY = {
 
+    # base_texture paths must exist in the 3.3.5a client (see tileset_listfile_335.txt)
     "jungle": {
         "name": "cozy jungle valley",
-        "base_texture": "tileset\\stranglethorn\\stranglethorngrassbase.blp",
+        "base_texture": "Tileset\\Stranglethorn\\StrangleThornGrass.blp",
         "palette": ["lush jungle grass", "muddy footpath", "wet gray rock", "dark jungle floor", "riverbank mud"],
         "assets": ["jungle trees", "vines", "wet rocks", "small huts", "ruined troll stones"],
         "colors": ["warm green", "deep shadow", "wet brown", "mossy gray"]
     },
     "forest": {
         "name": "temperate haunted forest",
-        "base_texture": "tileset\\elwynn\\elwynngrassbase.blp",
+        "base_texture": "Tileset\\Elwynn\\ElwynnGrassBase.blp",
         "palette": ["dark grass", "dirt road", "gray rock", "forest floor", "muddy shore"],
         "assets": ["pine trees", "dead trees", "human fences", "crates", "ruined walls"],
         "colors": ["deep green", "brown", "gray", "cold blue shadow"]
     },
     "northrend": {
         "name": "northern pine fjord",
-        "base_texture": "tileset\\northrend\\borean_tundra\\bt_grass01.blp",
+        "base_texture": "Tileset\\Expansion02\\BoreanTundra\\BT_GroundA.blp",
         "palette": ["cold grass", "dirt road", "gray cliff rock", "pine needles", "snow patches"],
         "assets": ["pines", "gray rocks", "vrykul ruins", "log structures", "boats"],
         "colors": ["cold green", "blue gray", "dark brown", "snow white"]
     },
     "snow": {
         "name": "cold mountain snowfield",
-        "base_texture": "tileset\\northrend\\snow\\snow01.blp",
+        "base_texture": "Tileset\\IronForge\\IronForgeSnow01solid.blp",
         "palette": ["snow", "ice dirt", "dark rock", "pine needles", "frozen shore"],
         "assets": ["pines", "snow rocks", "dwarf camp", "dead trees"],
         "colors": ["white", "blue", "black rock", "cold gray"]
     },
     "desert": {
         "name": "arid canyon basin",
-        "base_texture": "tileset\\tanaris\\tanaris_sand01.blp",
+        "base_texture": "Tileset\\Tanaris\\TanarisSandBase01.blp",
         "palette": ["sand", "dry dirt", "orange rock", "dry grass", "oasis mud"],
         "assets": ["cacti", "bones", "goblin tents", "ruins", "oasis palms"],
         "colors": ["tan", "orange", "brown", "sunlit cream"]
     },
     "swamp": {
         "name": "wet lowland swamp",
-        "base_texture": "tileset\\swampof sorrows\\swampgrass.blp",
+        "base_texture": "Tileset\\Swamp of Sorrows\\SwampSorrowsdirt02.blp",
         "palette": ["swamp grass", "mud", "dark rock", "marsh moss", "shallow water"],
         "assets": ["mangroves", "dead trees", "bog huts", "roots", "reeds"],
         "colors": ["olive", "mud brown", "dark green", "fog gray"]
     },
     "plague": {
         "name": "plagued Lordaeron woodland",
-        "base_texture": "tileset\\easternplaguelands\\epl_dirt01.blp",
+        "base_texture": "Tileset\\PlagueLandsEast\\EastPlaguedBaseGround.blp",
         "palette": ["sickly grass", "plague dirt", "gray rock", "dead leaves", "toxic shore"],
         "assets": ["dead trees", "ruined human buildings", "graveyard props", "plague cauldrons"],
         "colors": ["yellow green", "gray", "brown", "purple rot"]
@@ -218,28 +219,29 @@ def line_path(points: List[Tuple[float, float]]) -> List[List[float]]:
 
 def default_texture_layers_for_biome(biome_key: str, base_texture: str) -> List[Dict[str, Any]]:
     """Editable built-in texture paths. Learned rules override these in generate_adt.py."""
+    # All paths verified against the 3.3.5a client listfile (tileset_listfile_335.txt).
     common = {
         "base": base_texture,
-        "road": "tileset\\elwynn\\elwynndirtbase.blp",
-        "rock": "tileset\\elwynn\\elwynnrock.blp",
-        "forest": "tileset\\ashenvale\\ashenvaledarkgrass.blp",
-        "shore": "tileset\\elwynn\\elwynndirtbase.blp",
-        "snow": "tileset\\northrend\\snow\\snow01.blp",
-        "sand": "tileset\\tanaris\\tanaris_sand01.blp",
-        "plague": "tileset\\easternplaguelands\\epl_dirt01.blp",
+        "road": "Tileset\\Elwynn\\ElwynnDirtBase.blp",
+        "rock": "Tileset\\Elwynn\\ElwynnRockBase.blp",
+        "forest": "Tileset\\Elwynn\\ElwynnGrassShadow.blp",
+        "shore": "Tileset\\Elwynn\\ElwynnRiverMudBase.blp",
+        "snow": "Tileset\\IronForge\\IronForgeSnow01solid.blp",
+        "sand": "Tileset\\Ashenvale\\AshenvaleSand.blp",
+        "plague": "Tileset\\PlagueLandsEast\\EastPlaguedCorrupt.blp",
     }
     if biome_key == "jungle":
-        common["base"] = base_texture; common["road"] = "tileset\\stranglethorn\\stranglethorndirtbase.blp"; common["rock"] = "tileset\\stranglethorn\\stranglethornrock.blp"; common["forest"] = "tileset\\stranglethorn\\stranglethorngrassdark.blp"; common["shore"] = "tileset\\stranglethorn\\stranglethornmud.blp"
+        common["road"] = "Tileset\\Stranglethorn\\StrangleThornDirt03.blp"; common["rock"] = "Tileset\\Stranglethorn\\StrangleThornRock05.blp"; common["forest"] = "Tileset\\Stranglethorn\\StrangleThornplants01.blp"; common["shore"] = "Tileset\\Stranglethorn\\StrangleThornMossrootDirt01.blp"; common["sand"] = "Tileset\\Darkshore\\DarkshoreSand.blp"
     elif biome_key == "snow":
-        common["base"] = base_texture; common["shore"] = "tileset\\northrend\\snow\\snowdirt01.blp"
+        common["road"] = "Tileset\\IronForge\\IronForgeRock06road2.blp"; common["rock"] = "Tileset\\IronForge\\IronForgeRock07mountain.blp"; common["forest"] = "Tileset\\IronForge\\IronForgePineNeedles.blp"; common["shore"] = "Tileset\\IronForge\\IronForgeSnow05ScrapeBrown.blp"; common["snow"] = "Tileset\\IronForge\\IronForgeSnow03ripple.blp"; common["sand"] = "Tileset\\IronForge\\IronForgeSnow04Rock.blp"
     elif biome_key == "desert":
-        common["base"] = base_texture; common["road"] = "tileset\\tanaris\\tanaris_dirt01.blp"; common["rock"] = "tileset\\tanaris\\tanaris_rock01.blp"; common["shore"] = "tileset\\tanaris\\tanaris_sand01.blp"
+        common["road"] = "Tileset\\Tanaris\\TanarisDirtFootprint.blp"; common["rock"] = "Tileset\\Tanaris\\TanarisRockBase01.blp"; common["forest"] = "Tileset\\Tanaris\\TanarisCrackedGround.blp"; common["shore"] = "Tileset\\Tanaris\\TanarisSandStones.blp"; common["sand"] = "Tileset\\Tanaris\\TanarisSandBase02.blp"
     elif biome_key == "swamp":
-        common["base"] = base_texture; common["road"] = "tileset\\swampof sorrows\\swampmud.blp"; common["shore"] = "tileset\\swampof sorrows\\swampmud.blp"; common["forest"] = "tileset\\swampof sorrows\\swampgrass.blp"
+        common["road"] = "Tileset\\Swamp of Sorrows\\SwampSorrowsStoneRoad07.blp"; common["rock"] = "Tileset\\Swamp of Sorrows\\SwampSorrowsRock02.blp"; common["forest"] = "Tileset\\Swamp of Sorrows\\SwampSorrowsRoot01.blp"; common["shore"] = "Tileset\\Swamp of Sorrows\\SwampSorrowsMuckdark01.blp"; common["sand"] = "Tileset\\Duskwallow Marsh\\DuskwallowSand.blp"
     elif biome_key == "plague":
-        common["base"] = base_texture; common["road"] = "tileset\\easternplaguelands\\epl_dirt01.blp"; common["forest"] = "tileset\\westernplaguelands\\wpl_grass01.blp"; common["rock"] = "tileset\\easternplaguelands\\epl_rock01.blp"; common["shore"] = "tileset\\easternplaguelands\\epl_mud01.blp"
+        common["road"] = "Tileset\\PlagueLandsEast\\EastPlaguedRoadBase.blp"; common["forest"] = "Tileset\\PlagueLandsEast\\EastPlaguedDeadGrass.blp"; common["rock"] = "Tileset\\PlagueLandsEast\\EastPlaguedBaseRock.blp"; common["shore"] = "Tileset\\PlagueLandsEast\\EastPlaguedMudGrass.blp"
     elif biome_key == "northrend":
-        common["base"] = base_texture; common["road"] = "tileset\\northrend\\borean_tundra\\bt_dirt01.blp"; common["rock"] = "tileset\\northrend\\borean_tundra\\bt_rock01.blp"; common["forest"] = "tileset\\northrend\\grizzlyhills\\gh_grass01.blp"; common["shore"] = "tileset\\northrend\\borean_tundra\\bt_mud01.blp"
+        common["road"] = "Tileset\\Expansion02\\BoreanTundra\\BT_RoadA.blp"; common["rock"] = "Tileset\\Expansion02\\BoreanTundra\\BT_RockA.blp"; common["forest"] = "Tileset\\Expansion02\\GrizzlyHills\\GH_PineNeedlesA.blp"; common["shore"] = "Tileset\\Expansion02\\HowlingFjord\\HFjords_ShoreA.blp"; common["snow"] = "Tileset\\Expansion02\\BoreanTundra\\BT_ColdarraSnowA.blp"; common["sand"] = "Tileset\\Expansion02\\BoreanTundra\\BT_SandA.blp"
     return [
         {"role":"base", "label":"primary ground", "path":common["base"], "priority":0.05},
         {"role":"forest", "label":"forest floor / darker grass", "path":common["forest"], "priority":0.35},
@@ -484,7 +486,7 @@ def build_offline_spec(prompt: str, cfg: Dict[str, Any]) -> Dict[str, Any]:
             "valley_depth": 20.0,
             "water": {"enabled": True, "level": water_level, "liquid_type": 1, "liquid_vertex_format": 0, "river_width": 27.0, "shore_tolerance": 11.0},
             "wdl": {"enabled": True, "custom_only": True},
-            "minimap": {"enabled": True, "tile_size": 256, "write_tga_previews": True, "write_world_minimaps_copy": True, "write_md5translate": True, "write_full_md5translate": False},
+            "minimap": {"enabled": True, "tile_size": 256, "write_tga_previews": True, "write_world_minimaps_copy": False, "write_md5translate": True, "write_full_md5translate": False},
             "texture_painting": {"enabled": True, "learned_rules_path": "learned_blizzlike_rules.json", "max_layers_per_chunk": 4, "alpha_mode": "raw_4096", "breakup": 0.22},
             "dbc": {"map_id": 0, "area_id": 0},
             "seed": 1337
@@ -640,7 +642,7 @@ def write_generator_config_from_spec(spec: Dict[str, Any], path: Path) -> None:
     gen.setdefault("area_id", 0)
     gen.setdefault("output_dir", "output_loose")
     gen.setdefault("wdl", {"enabled": True, "custom_only": True})
-    gen.setdefault("minimap", {"enabled": True, "tile_size": 256, "write_tga_previews": True, "write_world_minimaps_copy": True, "write_md5translate": True, "write_full_md5translate": False})
+    gen.setdefault("minimap", {"enabled": True, "tile_size": 256, "write_tga_previews": True, "write_world_minimaps_copy": False, "write_md5translate": True, "write_full_md5translate": False})
     gen.setdefault("texture_painting", {"enabled": True, "learned_rules_path": "learned_blizzlike_rules.json", "max_layers_per_chunk": 4, "alpha_mode": "raw_4096", "breakup": 0.22})
     gen.setdefault("dbc", {"map_id": 0, "area_id": 0})
     gen.setdefault("seed", 1337)

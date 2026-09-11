@@ -2,7 +2,7 @@ AI ADT One-Click v0.19
 Generated 1 ADT tile(s) in mode=custom
 Tiles: [(32, 32)]
 Texture theme: jungle
-Texture layers: 12 MTEX entries, auto alphamaps=True
+Texture layers: 15 MTEX entries, auto alphamaps=True
 Ground-effect ids learned for 0 texture(s)
 Water enabled: True
 Wet MCNK chunks: 61

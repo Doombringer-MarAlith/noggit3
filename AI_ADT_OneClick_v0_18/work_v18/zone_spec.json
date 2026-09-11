@@ -330,7 +330,7 @@
     }
   ],
   "textures": {
-    "base_texture": "tileset\\stranglethorn\\stranglethorngrassbase.blp",
+    "base_texture": "Tileset\\Stranglethorn\\StrangleThornGrass.blp",
     "palette": [
       "lush jungle grass",
       "muddy footpath",
@@ -342,49 +342,49 @@
       {
         "role": "base",
         "label": "primary ground",
-        "path": "tileset\\stranglethorn\\stranglethorngrassbase.blp",
+        "path": "Tileset\\Stranglethorn\\StrangleThornGrass.blp",
         "priority": 0.05
       },
       {
         "role": "forest",
         "label": "forest floor / darker grass",
-        "path": "tileset\\stranglethorn\\stranglethorngrassdark.blp",
+        "path": "Tileset\\Stranglethorn\\StrangleThornplants01.blp",
         "priority": 0.35
       },
       {
         "role": "shore",
         "label": "mud or shore transition",
-        "path": "tileset\\stranglethorn\\stranglethornmud.blp",
+        "path": "Tileset\\Stranglethorn\\StrangleThornMossrootDirt01.blp",
         "priority": 0.55
       },
       {
         "role": "rock",
         "label": "slope rock",
-        "path": "tileset\\stranglethorn\\stranglethornrock.blp",
+        "path": "Tileset\\Stranglethorn\\StrangleThornRock05.blp",
         "priority": 0.7
       },
       {
         "role": "road",
         "label": "road dirt",
-        "path": "tileset\\stranglethorn\\stranglethorndirtbase.blp",
+        "path": "Tileset\\Stranglethorn\\StrangleThornDirt03.blp",
         "priority": 0.95
       },
       {
         "role": "snow",
         "label": "optional high elevation snow",
-        "path": "tileset\\northrend\\snow\\snow01.blp",
+        "path": "Tileset\\IronForge\\IronForgeSnow01solid.blp",
         "priority": 0.45
       },
       {
         "role": "sand",
         "label": "optional beach sand",
-        "path": "tileset\\tanaris\\tanaris_sand01.blp",
+        "path": "Tileset\\Darkshore\\DarkshoreSand.blp",
         "priority": 0.5
       },
       {
         "role": "plague",
         "label": "optional haunted/plague accent",
-        "path": "tileset\\easternplaguelands\\epl_dirt01.blp",
+        "path": "Tileset\\PlagueLandsEast\\EastPlaguedCorrupt.blp",
         "priority": 0.52
       }
     ],
@@ -716,7 +716,7 @@
     "mode": "custom",
     "area_id": 0,
     "output_dir": "output_loose",
-    "base_texture": "tileset\\stranglethorn\\stranglethorngrassbase.blp",
+    "base_texture": "Tileset\\Stranglethorn\\StrangleThornGrass.blp",
     "height_scale": 18.0,
     "hill_height": 35.0,
     "valley_depth": 20.0,
@@ -736,7 +736,7 @@
       "enabled": true,
       "tile_size": 256,
       "write_tga_previews": true,
-      "write_world_minimaps_copy": true,
+      "write_world_minimaps_copy": false,
       "write_md5translate": true,
       "write_full_md5translate": false
     },
@@ -769,5 +769,5 @@
     "Server-side DBC/SQL remains outside this package by design."
   ],
   "planner_used": "offline",
-  "generated_at_unix": 1789114066
+  "generated_at_unix": 1789114361
 }
