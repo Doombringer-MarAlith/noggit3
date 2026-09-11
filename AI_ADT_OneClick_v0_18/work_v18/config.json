@@ -1,4 +1,43 @@
 {
+  "mode": "custom",
+  "area_id": 0,
+  "output_dir": "output_loose",
+  "base_texture": "tileset\\stranglethorn\\stranglethorngrassbase.blp",
+  "height_scale": 18.0,
+  "hill_height": 35.0,
+  "valley_depth": 20.0,
+  "water": {
+    "enabled": true,
+    "level": 38.0,
+    "liquid_type": 1,
+    "liquid_vertex_format": 0,
+    "river_width": 27.0,
+    "shore_tolerance": 11.0
+  },
+  "wdl": {
+    "enabled": true,
+    "custom_only": true
+  },
+  "minimap": {
+    "enabled": true,
+    "tile_size": 256,
+    "write_tga_previews": true,
+    "write_world_minimaps_copy": true,
+    "write_md5translate": true,
+    "write_full_md5translate": false
+  },
+  "texture_painting": {
+    "enabled": true,
+    "learned_rules_path": "learned_blizzlike_rules.json",
+    "max_layers_per_chunk": 4,
+    "alpha_mode": "raw_4096",
+    "breakup": 0.22
+  },
+  "dbc": {
+    "map_id": 0,
+    "area_id": 0
+  },
+  "seed": 1337,
   "map_name": "x",
   "tiles_x": [
     32,
@@ -12,40 +51,55 @@
     34,
     35
   ],
-  "mode": "custom",
-  "output_dir": "output_loose",
   "zone_spec_path": "zone_spec.json",
-  "texture_painting": {
-    "enabled": true,
-    "learned_rules_path": "learned_blizzlike_rules.json",
-    "max_layers_per_chunk": 4,
-    "alpha_mode": "raw_4096",
-    "write_texture_debug": true,
-    "alpha_sample_step": 32,
-    "layer_choice_stride": 4
-  },
-  "water": {
-    "enabled": true,
-    "level": 38.0,
-    "liquid_type": 1,
-    "liquid_vertex_format": 0,
-    "river_width": 27.0,
-    "shore_tolerance": 11.0
-  },
-  "wdt": {
-    "mphd_flags": "auto"
-  },
-  "wdl": {
-    "enabled": true,
-    "custom_only": true
-  },
-  "minimap": {
-    "enabled": true,
-    "tile_size": 256,
-    "write_tga_previews": true,
-    "write_world_minimaps_copy": true,
-    "write_md5translate": true,
-    "sample_step": 32
-  },
-  "area_id": 0
+  "texture_layers": [
+    {
+      "role": "base",
+      "label": "primary ground",
+      "path": "tileset\\stranglethorn\\stranglethorngrassbase.blp",
+      "priority": 0.05
+    },
+    {
+      "role": "forest",
+      "label": "forest floor / darker grass",
+      "path": "tileset\\stranglethorn\\stranglethorngrassdark.blp",
+      "priority": 0.35
+    },
+    {
+      "role": "shore",
+      "label": "mud or shore transition",
+      "path": "tileset\\stranglethorn\\stranglethornmud.blp",
+      "priority": 0.55
+    },
+    {
+      "role": "rock",
+      "label": "slope rock",
+      "path": "tileset\\stranglethorn\\stranglethornrock.blp",
+      "priority": 0.7
+    },
+    {
+      "role": "road",
+      "label": "road dirt",
+      "path": "tileset\\stranglethorn\\stranglethorndirtbase.blp",
+      "priority": 0.95
+    },
+    {
+      "role": "snow",
+      "label": "optional high elevation snow",
+      "path": "tileset\\northrend\\snow\\snow01.blp",
+      "priority": 0.45
+    },
+    {
+      "role": "sand",
+      "label": "optional beach sand",
+      "path": "tileset\\tanaris\\tanaris_sand01.blp",
+      "priority": 0.5
+    },
+    {
+      "role": "plague",
+      "label": "optional haunted/plague accent",
+      "path": "tileset\\easternplaguelands\\epl_dirt01.blp",
+      "priority": 0.52
+    }
+  ]
 }

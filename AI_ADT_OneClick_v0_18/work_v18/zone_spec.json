@@ -47,11 +47,12 @@
   },
   "terrain": {
     "base_elevation": 42.0,
+    "snowline": 162.0,
     "global_noise": {
-      "large_wave_height": 24,
-      "medium_noise_height": 7,
-      "micro_noise_height": 1.8,
-      "micro_noise_allowed": false
+      "large_wave_height": 22,
+      "medium_noise_height": 6.5,
+      "micro_noise_height": 1.1,
+      "micro_noise_allowed": true
     },
     "features": [
       {
@@ -105,24 +106,28 @@
         "type": "valley",
         "path": [
           [
-            0.72,
-            0.15
+            0.64,
+            -0.08
           ],
           [
-            1.12,
-            1.0
+            0.96,
+            0.88
           ],
           [
-            1.8,
-            1.92
+            1.6,
+            1.6
           ],
           [
-            2.6,
-            2.88
+            2.08,
+            2.32
           ],
           [
-            3.28,
-            3.85
+            2.64,
+            2.96
+          ],
+          [
+            3.36,
+            4.08
           ]
         ],
         "depth": 25,
@@ -144,11 +149,11 @@
         "id": "mid_crossing_flat",
         "type": "plateau",
         "center": [
-          2.16,
-          2.2
+          1.76,
+          2.48
         ],
         "height": 6,
-        "radius": 0.5,
+        "radius": 0.45,
         "purpose": "flat crossing village and bridge approach"
       },
       {
@@ -176,8 +181,8 @@
       {
         "settlement_id": "mid_village",
         "center": [
-          2.16,
-          2.2
+          1.76,
+          2.48
         ],
         "radius": 0.34,
         "max_slope_degrees": 5
@@ -194,40 +199,47 @@
         "type": "river",
         "path": [
           [
-            0.72,
-            0.15
+            0.64,
+            -0.08
           ],
           [
-            1.12,
-            1.0
+            0.96,
+            0.88
           ],
           [
-            1.8,
-            1.92
+            1.6,
+            1.6
           ],
           [
-            2.6,
-            2.88
+            2.08,
+            2.32
           ],
           [
-            3.28,
-            3.85
+            2.64,
+            2.96
+          ],
+          [
+            3.36,
+            4.08
           ]
         ],
-        "width": 0.15,
-        "level": 38.0,
+        "width": 0.09,
+        "level": 42.0,
+        "level_end": 34.0,
+        "depth": 6.0,
         "purpose": "zone-spanning visual guide"
       },
       {
         "id": "crossing_lake",
         "type": "lake",
         "center": [
-          2.16,
-          2.28
+          2.32,
+          2.56
         ],
-        "radius": 0.23,
+        "radius": 0.2,
         "level": 38.0,
-        "purpose": "landmark at central village"
+        "depth": 11.0,
+        "purpose": "landmark beside the crossing village"
       }
     ],
     "shore_rules": [
@@ -563,8 +575,8 @@
       "name": "Bridgefield",
       "type": "quest village / crossing hub",
       "center": [
-        2.16,
-        2.2
+        1.76,
+        2.48
       ],
       "radius": 0.42,
       "faction": "contested",
@@ -726,17 +738,20 @@
       "write_tga_previews": true,
       "write_world_minimaps_copy": true,
       "write_md5translate": true,
-      "sample_step": 32
+      "write_full_md5translate": false
     },
     "texture_painting": {
       "enabled": true,
       "learned_rules_path": "learned_blizzlike_rules.json",
       "max_layers_per_chunk": 4,
       "alpha_mode": "raw_4096",
-      "alpha_sample_step": 32,
-      "write_texture_debug": true,
-      "layer_choice_stride": 4
-    }
+      "breakup": 0.22
+    },
+    "dbc": {
+      "map_id": 0,
+      "area_id": 0
+    },
+    "seed": 1337
   },
   "validation_targets": {
     "road_slope_max_degrees": 14,
@@ -754,5 +769,5 @@
     "Server-side DBC/SQL remains outside this package by design."
   ],
   "planner_used": "offline",
-  "generated_at_unix": 1781697439
+  "generated_at_unix": 1789114066
 }

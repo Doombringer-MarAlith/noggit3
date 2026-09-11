@@ -14,6 +14,8 @@ echo [4/4] Done. Optional: run pack_mpq.bat if MPQEditor.exe is next to this fil
 echo.
 echo Output folder: output_loose
 echo If your prompt said "for map X", the generated directory is usually output_loose\world\maps\x
+echo To make the map enterable, run: patch_dbc.bat C:\path\to\extracted\DBFilesClient
+echo (adds Map.dbc / AreaTable.dbc rows; ship them in the patch and in the server dbc folder)
 echo.
 pause
 exit /b 0

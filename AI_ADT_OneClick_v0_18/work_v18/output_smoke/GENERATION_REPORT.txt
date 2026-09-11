@@ -1,13 +1,15 @@
-AI ADT One-Click v0.18
+AI ADT One-Click v0.19
 Generated 1 ADT tile(s) in mode=custom
 Tiles: [(32, 32)]
 Texture theme: jungle
 Texture layers: 12 MTEX entries, auto alphamaps=True
+Ground-effect ids learned for 0 texture(s)
 Water enabled: True
-Wet MCNK chunks across custom tile set: -1
+Wet MCNK chunks: 61
+  main_river: river level 42.0->34.0
+  crossing_lake: lake level 36.9 (level snapped to main_river)
 WDL enabled for custom map: True
 Minimap enabled: True
 
-Fast visual test: pack output_loose into an MPQ patch and fly/teleport near map 0 x=0 y=0 z=100.
-Custom map: add your own Map.dbc row whose Directory field is x, then use world/maps/x files.
-Minimap note: md5translate.trs is a minimal test file. For a real client patch, merge the generated fragment into your extracted original Textures\Minimap\md5translate.trs.
+Custom map: run patch_dbc.py against your extracted DBFilesClient to add Map.dbc/AreaTable.dbc rows for x.
+Minimap note: merge md5translate_AIGEN_FRAGMENT.trs into your extracted original Textures\Minimap\md5translate.trs.

@@ -1,4 +1,39 @@
-# AI ADT OneClick v0.18
+# AI ADT OneClick v0.19
+
+## v0.19 second pass: terrain engine, water, DBCs, learning
+
+Everything a tile needs now comes from one deterministic field grid
+(`terrain_fields.py`, half-UNIT resolution, exact at tile borders), so MCVT,
+MCNR, MH2O, MCAL, the low-quality texture map, WDL MARE samples and the minimap
+all agree with each other and with neighbouring tiles.
+
+- Terrain: gradient-noise relief around the spec's `base_elevation`, spec
+  features (ridge with ridged crests, hill, plateau, valley, basin, coast,
+  cliff_band), Catmull-Rom smoothed paths, slope-scaled micro relief.
+- Water: rivers/lakes/ocean edges carve parabolic channels below their surface
+  with banks limited to ~27 degrees; river surfaces slope from `level` to
+  `level_end`; lakes touching a river snap to the river surface; MH2O carries
+  per-vertex heights and Noggit's depth/opacity formula (transparent shores).
+- Roads are cut/filled to a low-passed profile along the path; settlement pads
+  are flattened toward their natural centre height.
+- Textures: role weights (base/forest/shore/sand/rock/road/snow/plague) from
+  height, macro slope, water/road/settlement distance and low-frequency noise,
+  rasterised to 64x64 alphas with world-anchored breakup noise; rock follows
+  real cliffs and cut banks only. MCLY `effectId` uses ground-effect ids learned
+  from real ADTs (`texture_effect_ids`), so grass/pebble doodads appear.
+- MCNR: bytes are now the client-frame upward normal exactly as Noggit writes
+  it ((+dh/drow, +dh/dcol, up)); the previous order mirrored the lighting.
+- Minimap: composite of texture colours, hill-shaded from the normal, water
+  tinted by depth, adaptive median-cut palette per tile.
+- `patch_dbc.py` / `patch_dbc.bat`: appends the map to an extracted
+  `Map.dbc` (and `AreaTable.dbc`) so the client and server can enter it.
+- `ai_zone_spec.py`: native Claude planner via the official `anthropic` SDK
+  (`ANTHROPIC_API_KEY`, model `claude-opus-5`), OpenAI-compatible endpoint
+  kept; specs now carry river `level_end`/`depth`, lake `depth`, `snowline`.
+- `learn_blizzlike_rules.py`: also learns texture->effectId, MCNK flags,
+  holes, base-height percentiles, liquid ids/vertex formats/depth bytes.
+
+Generation runs at roughly 8-10 s per ADT in plain Python.
 
 ## v0.19 external audit fixes (Noggit-source cross-review)
 

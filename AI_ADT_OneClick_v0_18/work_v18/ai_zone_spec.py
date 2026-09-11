@@ -28,6 +28,8 @@ from typing import Any, Dict, List, Tuple
 
 DEFAULT_AI_CONFIG = {
     "mode": "auto",                  # auto | api | offline
+    "provider": "auto",              # auto | anthropic | openai_compatible
+    "anthropic_model": "claude-opus-5",
     "base_url": "https://api.openai.com/v1",
     "model": "gpt-4.1-mini",
     "temperature": 0.7,
@@ -116,11 +118,21 @@ generator_config, validation_targets, production_notes.
 For terrain.features, use items with:
   id, type, path OR center, height OR depth, width OR radius, purpose.
 Allowed terrain feature types: ridge, hill, basin, valley, plateau, coast, cliff_band.
-For water.features, use river/lake/ocean_edge with path/center, width/radius, level.
-For roads, use path, width, target_slope_max, surface, purpose.
+terrain may also carry base_elevation (yards), snowline (yards; snow textures above it) and
+global_noise {large_wave_height, medium_noise_height, micro_noise_height}.
+For water.features, use river/lake/ocean_edge with path/center, width/radius (ADT units,
+half-width), level (surface height in yards), depth (channel/basin depth in yards) and, for
+rivers, an optional level_end so the surface slopes downstream from level to level_end.
+Lakes that touch a river are automatically snapped to the river surface height.
+For roads, use path, width (ADT units, half-width), target_slope_max, surface, purpose;
+the generator cuts and fills terrain to a smoothed profile along each road.
+For terrain.settlement_flattening use center, radius, max_slope_degrees (pads are flattened
+toward the natural height at their centre).
 For reverse_region_modes, use tile keys like "32,32" with preserve/polish/regenerate.
 
-Keep numeric values realistic for WotLK ADT terrain. Avoid impossible vertical overhangs unless object_intent says WMO needed.
+Keep numeric values realistic for WotLK ADT terrain: river depths 4-9, lake depths 8-16,
+ridge heights 40-120, water levels below the base elevation so channels read as valleys.
+Avoid impossible vertical overhangs unless object_intent says WMO needed.
 """
 
 
@@ -285,12 +297,15 @@ def build_offline_spec(prompt: str, cfg: Dict[str, Any]) -> Dict[str, Any]:
         (sx * 0.63, sy * 0.42),
         (sx - 0.45, 0.75),
     ])
+    # The river enters and leaves the generated block instead of starting on a
+    # hillside; the generator smooths the polyline into a meander.
     river = line_path([
-        (sx * 0.18, 0.15),
-        (sx * 0.28, sy * 0.25),
-        (sx * 0.45, sy * 0.48),
-        (sx * 0.65, sy * 0.72),
-        (sx * 0.82, sy - 0.15),
+        (sx * 0.16, -0.08),
+        (sx * 0.24, sy * 0.22),
+        (sx * 0.40, sy * 0.40),
+        (sx * 0.52, sy * 0.58),
+        (sx * 0.66, sy * 0.74),
+        (sx * 0.84, sy + 0.08),
     ])
     ridge_north = line_path([(0.0, 0.65), (sx * 0.3, 0.35), (sx * 0.7, 0.55), (sx, 0.25)])
     ridge_east = line_path([(sx - 0.35, 0.5), (sx - 0.55, sy * 0.45), (sx - 0.25, sy - 0.2)])
@@ -311,7 +326,7 @@ def build_offline_spec(prompt: str, cfg: Dict[str, Any]) -> Dict[str, Any]:
             "id": "mid_village",
             "name": "Old Ferry" if coastal else "Bridgefield",
             "type": "quest village / crossing hub",
-            "center": [round(sx * 0.54, 2), round(sy * 0.55, 2)],
+            "center": [round(sx * 0.44, 2), round(sy * 0.62, 2)],
             "radius": 0.42,
             "faction": "contested",
             "terrain_requirements": {"flatten_radius": 0.34, "max_slope_degrees": 5},
@@ -377,13 +392,14 @@ def build_offline_spec(prompt: str, cfg: Dict[str, Any]) -> Dict[str, Any]:
         },
         "terrain": {
             "base_elevation": base,
-            "global_noise": {"large_wave_height": 24, "medium_noise_height": 7, "micro_noise_height": 1.8, "micro_noise_allowed": False},
+            "snowline": base - 45.0 if biome_key == "snow" else base + (70.0 if biome_key == "northrend" else 120.0),
+            "global_noise": {"large_wave_height": 22, "medium_noise_height": 6.5, "micro_noise_height": 1.1, "micro_noise_allowed": True},
             "features": [
                 {"id": "north_macro_ridge", "type": "ridge", "path": ridge_north, "height": 75, "width": 0.75, "purpose": "northern zone wall and distant silhouette"},
                 {"id": "eastern_boundary_ridge", "type": "ridge", "path": ridge_east, "height": 65, "width": 0.62, "purpose": "contain the play space without invisible walls"},
                 {"id": "central_river_valley", "type": "valley", "path": river, "depth": 25, "width": 0.48, "purpose": "natural travel guide and water basin"},
                 {"id": "entry_plateau", "type": "plateau", "center": [round(sx*0.25,2), round(sy*0.78,2)], "height": 8, "radius": 0.42, "purpose": "flat safe start hub"},
-                {"id": "mid_crossing_flat", "type": "plateau", "center": [round(sx*0.54,2), round(sy*0.55,2)], "height": 6, "radius": 0.5, "purpose": "flat crossing village and bridge approach"},
+                {"id": "mid_crossing_flat", "type": "plateau", "center": [round(sx*0.44,2), round(sy*0.62,2)], "height": 6, "radius": 0.45, "purpose": "flat crossing village and bridge approach"},
                 {"id": "wilds_basin", "type": "basin", "center": [round(sx*0.82,2), round(sy*0.74,2)], "depth": 18, "radius": 0.72, "purpose": "redo target with more interesting lowland loop"}
             ] + ([{"id": "western_coast_cut", "type": "coast", "path": coast_path, "depth": 48, "width": 0.42, "purpose": "coastal water edge and cliffs"}] if coastal else []),
             "settlement_flattening": [
@@ -396,9 +412,11 @@ def build_offline_spec(prompt: str, cfg: Dict[str, Any]) -> Dict[str, Any]:
             "level": water_level,
             "liquid_type": 1,
             "features": [
-                {"id": "main_river", "type": "river", "path": river, "width": 0.15 if sx <= 4 else 0.18, "level": water_level, "purpose": "zone-spanning visual guide"},
-                {"id": "crossing_lake", "type": "lake", "center": [round(sx*0.54,2), round(sy*0.57,2)], "radius": 0.23, "level": water_level, "purpose": "landmark at central village"}
-            ] + ([{"id": "ocean_west", "type": "ocean_edge", "path": coast_path, "width": 0.24, "level": water_level, "purpose": "coastal boundary"}] if coastal else []),
+                # The river surface slopes downstream (level -> level_end) and carves a
+                # 6-yard channel; the lake snaps to the river surface where they meet.
+                {"id": "main_river", "type": "river", "path": river, "width": 0.09 if sx <= 4 else 0.11, "level": water_level + 4.0, "level_end": water_level - 4.0, "depth": 6.0, "purpose": "zone-spanning visual guide"},
+                {"id": "crossing_lake", "type": "lake", "center": [round(sx*0.58,2), round(sy*0.64,2)], "radius": 0.2, "level": water_level, "depth": 11.0, "purpose": "landmark beside the crossing village"}
+            ] + ([{"id": "ocean_west", "type": "ocean_edge", "path": coast_path, "width": 0.24, "level": water_level - 6.0, "depth": 26.0, "purpose": "coastal boundary"}] if coastal else []),
             "shore_rules": ["mud/sand mask 0.05-0.12 ADT from liquid", "rocky banks where slope exceeds 20 degrees", "roads require bridge/ford markers where crossing river"]
         },
         "roads": [
@@ -466,8 +484,10 @@ def build_offline_spec(prompt: str, cfg: Dict[str, Any]) -> Dict[str, Any]:
             "valley_depth": 20.0,
             "water": {"enabled": True, "level": water_level, "liquid_type": 1, "liquid_vertex_format": 0, "river_width": 27.0, "shore_tolerance": 11.0},
             "wdl": {"enabled": True, "custom_only": True},
-            "minimap": {"enabled": True, "tile_size": 256, "write_tga_previews": True, "write_world_minimaps_copy": True, "write_md5translate": True, "sample_step": 32},
-            "texture_painting": {"enabled": True, "learned_rules_path": "learned_blizzlike_rules.json", "max_layers_per_chunk": 4, "alpha_mode": "raw_4096", "alpha_sample_step": 32, "write_texture_debug": True, "layer_choice_stride": 4}
+            "minimap": {"enabled": True, "tile_size": 256, "write_tga_previews": True, "write_world_minimaps_copy": True, "write_md5translate": True, "write_full_md5translate": False},
+            "texture_painting": {"enabled": True, "learned_rules_path": "learned_blizzlike_rules.json", "max_layers_per_chunk": 4, "alpha_mode": "raw_4096", "breakup": 0.22},
+            "dbc": {"map_id": 0, "area_id": 0},
+            "seed": 1337
         },
         "validation_targets": {
             "road_slope_max_degrees": 14,
@@ -532,6 +552,41 @@ def extract_json_object(text: str) -> Dict[str, Any]:
     return json.loads(text[start:end+1])
 
 
+def call_anthropic(prompt: str, cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """Plan the zone with Claude through the official anthropic SDK (pip install anthropic).
+
+    Credentials resolve from ANTHROPIC_API_KEY (or an `ant auth login` profile).
+    Thinking is adaptive by default on current models, so it is not configured
+    here; the request streams because the spec JSON is long.
+    """
+    try:
+        import anthropic
+    except ImportError as e:
+        raise RuntimeError("provider=anthropic needs the SDK: pip install anthropic") from e
+    model = os.environ.get("ANTHROPIC_MODEL") or cfg.get("anthropic_model", DEFAULT_AI_CONFIG["anthropic_model"])
+    client = anthropic.Anthropic()
+    try:
+        with client.messages.stream(
+            model=model,
+            max_tokens=int(cfg.get("max_tokens", 16000)),
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": prompt}],
+        ) as stream:
+            response = stream.get_final_message()
+    except anthropic.AuthenticationError as e:
+        raise RuntimeError("Anthropic API key rejected (set ANTHROPIC_API_KEY)") from e
+    except anthropic.RateLimitError as e:
+        raise RuntimeError("Anthropic API rate limited; retry later") from e
+    except anthropic.APIStatusError as e:
+        raise RuntimeError(f"Anthropic API error {e.status_code}: {e.message}") from e
+    except anthropic.APIConnectionError as e:
+        raise RuntimeError("Could not reach the Anthropic API") from e
+    if response.stop_reason == "refusal":
+        raise RuntimeError("Claude declined to write this zone spec")
+    text = "".join(block.text for block in response.content if block.type == "text")
+    return extract_json_object(text)
+
+
 def call_openai_compatible(prompt: str, cfg: Dict[str, Any]) -> Dict[str, Any]:
     api_key = os.environ.get("AI_API_KEY") or os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -585,8 +640,10 @@ def write_generator_config_from_spec(spec: Dict[str, Any], path: Path) -> None:
     gen.setdefault("area_id", 0)
     gen.setdefault("output_dir", "output_loose")
     gen.setdefault("wdl", {"enabled": True, "custom_only": True})
-    gen.setdefault("minimap", {"enabled": True, "tile_size": 256, "write_tga_previews": True, "write_world_minimaps_copy": True, "write_md5translate": True, "sample_step": 32})
-    gen.setdefault("texture_painting", {"enabled": True, "learned_rules_path": "learned_blizzlike_rules.json", "max_layers_per_chunk": 4, "alpha_mode": "raw_4096", "alpha_sample_step": 32, "write_texture_debug": True, "layer_choice_stride": 4})
+    gen.setdefault("minimap", {"enabled": True, "tile_size": 256, "write_tga_previews": True, "write_world_minimaps_copy": True, "write_md5translate": True, "write_full_md5translate": False})
+    gen.setdefault("texture_painting", {"enabled": True, "learned_rules_path": "learned_blizzlike_rules.json", "max_layers_per_chunk": 4, "alpha_mode": "raw_4096", "breakup": 0.22})
+    gen.setdefault("dbc", {"map_id": 0, "area_id": 0})
+    gen.setdefault("seed", 1337)
     if spec.get("textures", {}).get("texture_layers"):
         gen["texture_layers"] = spec["textures"]["texture_layers"]
     path.write_text(json.dumps(gen, indent=2), encoding="utf-8")
@@ -666,12 +723,21 @@ def main() -> None:
         prompt = p.read_text(encoding="utf-8").strip()
 
     mode = str(cfg.get("mode", "auto")).lower()
-    use_api = (mode == "api") or (mode == "auto" and (os.environ.get("AI_API_KEY") or os.environ.get("OPENAI_API_KEY")) and not args.force_offline)
+    provider = str(cfg.get("provider", "auto")).lower()
+    has_anthropic = bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"))
+    has_openai = bool(os.environ.get("AI_API_KEY") or os.environ.get("OPENAI_API_KEY"))
+    if provider == "auto":
+        provider = "anthropic" if has_anthropic else "openai_compatible"
+    use_api = (mode == "api") or (mode == "auto" and (has_anthropic or has_openai) and not args.force_offline)
     planner = "offline"
     if use_api:
         try:
-            raw_spec = call_openai_compatible(prompt, cfg)
-            planner = "api"
+            if provider == "anthropic":
+                raw_spec = call_anthropic(prompt, cfg)
+                planner = "anthropic"
+            else:
+                raw_spec = call_openai_compatible(prompt, cfg)
+                planner = "openai_compatible"
         except Exception as e:
             if mode == "api":
                 raise SystemExit(f"AI planner failed: {e}")

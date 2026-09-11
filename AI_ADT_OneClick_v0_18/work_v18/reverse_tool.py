@@ -549,9 +549,14 @@ def bilinear_grid(grid: List[List[float]], x: float, y: float) -> float:
 
 
 def pack_normal_bytes(nx: float, ny: float, nz: float) -> bytes:
+    """Pack an upward normal given as (-dh/dcol, 1, -dh/drow) in Noggit's frame.
+
+    Noggit's saved MCNR bytes work out to (+dh/drow, +dh/dcol, up)/|n|
+    (MapChunk.cpp:1043 swizzle then 1739-1741), i.e. the client-frame upward
+    normal in (X, Y, Z-up) order, so the disk order here is (-nz, -nx, ny).
+    """
     inv = 1.0 / max(1e-6, math.sqrt(nx*nx + ny*ny + nz*nz))
-    # Noggit saves MCNR bytes as normal.x, normal.z, normal.y.
-    vals = (nx * inv, nz * inv, ny * inv)
+    vals = (-nz * inv, -nx * inv, ny * inv)
     return b''.join(struct.pack('<b', max(-127, min(127, int(round(v * 127.0))))) for v in vals)
 
 

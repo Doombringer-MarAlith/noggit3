@@ -284,6 +284,14 @@ def check_adt(path: Path, expect_big_alpha: bool | None = None):
                         else:  # lvf == 2
                             min_payload = verts
                         assert hm_off >= 256*12 and hm_off + min_payload <= mh2o_size, (path, i, 'MH2O height/depth offset', hm_off, min_payload, mh2o_size)
+                        if lvf in (0, 1):
+                            # Noggit clamps vertex heights into [minHeight, maxHeight] on
+                            # load; sloped rivers must keep every vertex inside that range.
+                            min_h = f32(b, ipos+4); max_h = f32(b, ipos+8)
+                            assert min_h <= max_h, (path, i, 'MH2O min > max', min_h, max_h)
+                            for k in range(verts):
+                                hv = f32(b, mh2o + 8 + hm_off + 4*k)
+                                assert min_h - 1e-3 <= hv <= max_h + 1e-3, (path, i, 'MH2O vertex height outside min/max', hv, min_h, max_h)
                 wet+=1
     vertical_min=min(pos_y_samples); vertical_max=max(pos_y_samples)
     print(f'OK ADT {path}: {len(b)} bytes, MCNK={mcnk_count}, wet_MH2O_chunks={wet}, alpha_maps={alpha_maps} compressed={compressed_maps}, base_height_range={vertical_min:.1f}..{vertical_max:.1f}')

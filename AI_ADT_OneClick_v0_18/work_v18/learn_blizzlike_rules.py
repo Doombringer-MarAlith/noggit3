@@ -128,7 +128,9 @@ def parse_layers_for_mcnk(b: bytes, mcnk_off: int, size: int, textures: List[str
 def analyze_adt(path: Path) -> Dict[str, Any]:
     b=path.read_bytes(); top=scan_chunks(b); textures=read_mtex(b, top)
     by={n:(p,s) for p,n,s in top}
-    tile={"path":str(path),"textures":textures,"chunks":0,"layer_counts":Counter(),"role_counts":Counter(),"theme_counts":Counter(),"texture_counts":Counter(),"role_slope":defaultdict(list),"warnings":[]}
+    tile={"path":str(path),"textures":textures,"chunks":0,"layer_counts":Counter(),"role_counts":Counter(),"theme_counts":Counter(),"texture_counts":Counter(),"role_slope":defaultdict(list),"warnings":[],
+          "texture_effects":defaultdict(Counter),"mcnk_flags":Counter(),"holes_chunks":0,"base_heights":[],
+          "liquid_ids":Counter(),"liquid_lvf":Counter(),"liquid_depths":[],"wet_chunks":0}
     if 'MCIN' not in by:
         tile['warnings'].append('missing MCIN')
         return tile
@@ -145,12 +147,49 @@ def analyze_adt(path: Path) -> Dict[str, Any]:
         layers=parse_layers_for_mcnk(b, off, sz, textures)
         tile['chunks'] += 1
         tile['layer_counts'][len(layers)] += 1
-        for li,(_tid,flags,_ao,_eff,path2,role) in enumerate(layers):
+        tile['mcnk_flags'][u32(b, ds)] += 1
+        if u32(b, ds+60) & 0xFFFF:
+            tile['holes_chunks'] += 1
+        tile['base_heights'].append(f32(b, ds+112))
+        for li,(_tid,flags,_ao,eff,path2,role) in enumerate(layers):
             tile['texture_counts'][path2] += 1
             tile['role_counts'][role] += 1
             tile['theme_counts'][classify_theme(path2)] += 1
             tile['role_slope'][role].append(slope)
+            # GroundEffectTexture ids per texture: this is what makes grass/pebble
+            # ground doodads appear in the client, so learn them per path.
+            tile['texture_effects'][path2][eff] += 1
+    analyze_mh2o(b, by, tile)
     return tile
+
+
+def analyze_mh2o(b: bytes, by: Dict[str, Tuple[int,int]], tile: Dict[str, Any]) -> None:
+    """Liquid ids / vertex formats / depth bytes from MH2O, per Noggit's layout."""
+    if 'MH2O' not in by:
+        return
+    pos, size = by['MH2O']
+    if size < 256*12:
+        return
+    base = pos + 8
+    for i in range(256):
+        ofs_info = u32(b, base + i*12); n_layers = u32(b, base + i*12 + 4)
+        if not n_layers or not ofs_info:
+            continue
+        tile['wet_chunks'] += 1
+        for l in range(min(n_layers, 4)):
+            ip = base + ofs_info + l*24
+            if ip + 24 > base + size: break
+            liquid_id = struct.unpack_from('<H', b, ip)[0]
+            lvf = struct.unpack_from('<H', b, ip+2)[0]
+            w = b[ip+14]; h = b[ip+15]
+            ofs_hm = u32(b, ip+20)
+            tile['liquid_ids'][liquid_id] += 1
+            tile['liquid_lvf'][lvf] += 1
+            if ofs_hm and lvf in (0, 2) and 1 <= w <= 8 and 1 <= h <= 8:
+                nverts = (w+1)*(h+1)
+                dpos = base + ofs_hm + (nverts*4 if lvf == 0 else 0)
+                if dpos + nverts <= base + size:
+                    tile['liquid_depths'].extend(b[dpos:dpos+nverts:max(1, nverts//8)])
 
 def percentile(vals: List[float], p: float) -> float:
     if not vals: return 0.0
@@ -159,10 +198,21 @@ def percentile(vals: List[float], p: float) -> float:
 
 def build_rules(results: List[Dict[str, Any]], source_root: str) -> Dict[str, Any]:
     texture_counts=Counter(); role_counts=Counter(); theme_counts=Counter(); layer_counts=Counter(); role_slope=defaultdict(list)
+    texture_effects=defaultdict(Counter); mcnk_flags=Counter(); holes_chunks=0; base_heights=[]
+    liquid_ids=Counter(); liquid_lvf=Counter(); liquid_depths=[]; wet_chunks=0
     warnings=[]; chunks=0
     for r in results:
         texture_counts.update(r['texture_counts']); role_counts.update(r['role_counts']); theme_counts.update(r.get('theme_counts', Counter())); layer_counts.update(r['layer_counts']); chunks += r['chunks']; warnings += r['warnings'][:3]
         for role, vals in r['role_slope'].items(): role_slope[role].extend(vals)
+        for path2, effs in r.get('texture_effects', {}).items(): texture_effects[path2].update(effs)
+        mcnk_flags.update(r.get('mcnk_flags', Counter())); holes_chunks += r.get('holes_chunks', 0)
+        base_heights.extend(r.get('base_heights', [])); liquid_ids.update(r.get('liquid_ids', Counter()))
+        liquid_lvf.update(r.get('liquid_lvf', Counter())); liquid_depths.extend(r.get('liquid_depths', [])); wet_chunks += r.get('wet_chunks', 0)
+    # Most common GroundEffectTexture id per texture path; 0xFFFF/0xFFFFFFFF mean 'none'.
+    effect_ids={}
+    for path2, effs in texture_effects.items():
+        eff, _cnt = effs.most_common(1)[0]
+        effect_ids[path2] = int(eff)
     by_role=defaultdict(list)
     by_theme_role=defaultdict(lambda: defaultdict(list))
     for path,count in texture_counts.most_common():
@@ -210,6 +260,17 @@ def build_rules(results: List[Dict[str, Any]], source_root: str) -> Dict[str, An
         },
         'recommended_texture_layers':recommended[:12],
         'recommended_texture_layers_by_theme':recommended_by_theme,
+        'texture_effect_ids':effect_ids,
+        'terrain_stats':{
+            'base_height_p05':round(percentile(base_heights,0.05),2),'base_height_p50':round(percentile(base_heights,0.50),2),
+            'base_height_p95':round(percentile(base_heights,0.95),2),'holes_chunk_fraction':round(holes_chunks/max(1,chunks),4),
+            'mcnk_flags_top':[(hex(f),c) for f,c in mcnk_flags.most_common(8)]
+        },
+        'liquid_stats':{
+            'wet_chunk_fraction':round(wet_chunks/max(1,chunks),4),
+            'liquid_ids':liquid_ids.most_common(10),'vertex_formats':liquid_lvf.most_common(4),
+            'depth_byte_p25':percentile(liquid_depths,0.25),'depth_byte_p50':percentile(liquid_depths,0.50),'depth_byte_p75':percentile(liquid_depths,0.75)
+        },
         'texture_role_thresholds':{
             role:{'slope_p25':round(percentile(vals,0.25),2),'slope_p50':round(percentile(vals,0.50),2),'slope_p75':round(percentile(vals,0.75),2),'samples':len(vals)}
             for role,vals in sorted(role_slope.items())
